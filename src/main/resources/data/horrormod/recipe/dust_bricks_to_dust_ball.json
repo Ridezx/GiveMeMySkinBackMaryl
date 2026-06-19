@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "horrormod:dustbricks"
+    }
+  ],
+  "result": {
+    "count": 4,
+    "id": "horrormod:dust_ball"
+  }
+}

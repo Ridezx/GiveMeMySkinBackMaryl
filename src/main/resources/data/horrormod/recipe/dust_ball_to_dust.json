@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "horrormod:dust_ball"
+    }
+  ],
+  "result": {
+    "count": 4,
+    "id": "horrormod:dust"
+  }
+}
