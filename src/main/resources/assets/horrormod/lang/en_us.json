@@ -11,14 +11,23 @@
   "item.horrormod.salt": "Salt",
   "item.horrormod.holy_text": "Holy Text",
   "item.horrormod.aspiraton": "Aspiraton",
+  "item.horrormod.chisel": "Chisel",
+  "item.horrormod.placeholder": "placeholder",
 
   "block.horrormod.veinseep": "Veinseep",
   "block.horrormod.veinseep_deepslate": "Deepslate Veinseep",
   "block.horrormod.avolition": "Avolition",
   "block.horrormod.dustbricks": "Dust Bricks",
   "block.horrormod.aspiraton_block": "Aspiraton Block",
+  "block.horrormod.deepslate_aspiraton_drop": "Aspiraton",
+  "block.horrormod.aspiraton_drop": "Aspiraton",
+  "block.horrormod.magic_block": "Magic Block",
 
   "creativetab.horrormod.give_me_my_skin_back_maryl_items": "Give Me My Skin Back, Maryl Items",
-  "creativetab.horrormod.give_me_my_skin_back_maryl_blocks": "Give Me My Skin Back, Maryl Blocks"
+  "creativetab.horrormod.give_me_my_skin_back_maryl_blocks": "Give Me My Skin Back, Maryl Building Blocks",
+  "creativetab.horrormod.give_me_my_skin_back_maryl_natural": "Give Me My Skin Back, Maryl Naturals",
+  "creativetab.horrormod.give_me_my_skin_back_maryl_tools": "Give Me My Skin Back, Maryl Tools",
+  "creativetab.horrormod.give_me_my_skin_back_maryl_functional": "Give Me My Skin Back, Maryl Functional Blocks",
+  "creativetab.horrormod.give_me_my_skin_back_maryl_ingredients": "Give Me My Skin Back, Maryl Ingredients"
 
 }

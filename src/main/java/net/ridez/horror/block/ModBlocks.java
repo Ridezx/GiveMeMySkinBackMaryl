@@ -1,5 +1,6 @@
 package net.ridez.horror.block;
 
+import com.mojang.blaze3d.shaders.Uniform;
 import net.minecraft.util.valueproviders.UniformInt;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -12,6 +13,7 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import net.ridez.horror.HorrorMod;
+import net.ridez.horror.block.custom.MagicBlock;
 import net.ridez.horror.item.ModItems;
 
 import java.util.function.Supplier;
@@ -28,6 +30,14 @@ public class ModBlocks {
             ()-> new Block(BlockBehaviour.Properties.of()
                     .strength(5f).requiresCorrectToolForDrops().sound(SoundType.DEEPSLATE)));
 
+    public static final RegistryObject<Block> aspiraton_drop = registerBlock("aspiraton_drop",
+            ()-> new DropExperienceBlock(UniformInt.of(2,4),BlockBehaviour.Properties.of()
+                    .strength(4f).requiresCorrectToolForDrops().sound(SoundType.STONE)));
+
+    public static final RegistryObject<Block> deepslate_aspiraton_drop = registerBlock("deepslate_aspiraton_drop",
+            ()-> new DropExperienceBlock(UniformInt.of(3,5),BlockBehaviour.Properties.of()
+                    .strength(5f).requiresCorrectToolForDrops().sound(SoundType.DEEPSLATE)));
+
     public static final RegistryObject<Block> avolition = registerBlock("avolition",
             ()-> new Block(BlockBehaviour.Properties.of()
                     .strength(55f).requiresCorrectToolForDrops()));
@@ -39,6 +49,9 @@ public class ModBlocks {
     public static final RegistryObject<Block> aspiraton_block = registerBlock("aspiraton_block",
             ()-> new Block(BlockBehaviour.Properties.of()
                     .strength(3f).requiresCorrectToolForDrops().sound(SoundType.NETHERITE_BLOCK)));
+
+    public static final RegistryObject<Block> Magic_Block = registerBlock("magic_block",
+            () -> new MagicBlock(BlockBehaviour.Properties.of().strength(8f).requiresCorrectToolForDrops()));
 
 
 

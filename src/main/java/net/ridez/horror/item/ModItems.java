@@ -6,6 +6,7 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import net.ridez.horror.HorrorMod;
+import net.ridez.horror.item.custom.ChiselItem;
 
 public class ModItems {
     public static final DeferredRegister<Item> ITEMS =
@@ -35,6 +36,12 @@ public class ModItems {
             ()->new Item(new Item.Properties()));
     public static final RegistryObject<Item> aspiraton = ITEMS.register("aspiraton",
             ()->new Item(new Item.Properties()));
+    public static final RegistryObject<Item> chisel = ITEMS.register("chisel",
+            () -> new ChiselItem(new Item.Properties().durability(32)));
+public static final RegistryObject<Item> placeholder = ITEMS.register("placeholder",
+        () -> new Item(new Item.Properties().food(ModFoodProperties.placeholder)));
+
+
 
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);

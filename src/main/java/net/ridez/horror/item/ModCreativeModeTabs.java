@@ -18,30 +18,65 @@ public class ModCreativeModeTabs {
             () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModItems.pelt.get()))
                     .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_items"))
                     .displayItems((itemDisplayParameters, output) -> {
-                        output.accept(ModItems.pelt.get());
                         output.accept(ModItems.cloth_strap.get());
-                        output.accept(ModItems.dust.get());
-                        output.accept(ModItems.dust_ball.get());
                         output.accept(ModItems.salt.get());
                         output.accept(ModItems.heroine.get());
                         output.accept(ModItems.straw.get());
                         output.accept(ModItems.crank.get());
                         output.accept(ModItems.speedy_car.get());
                         output.accept(ModItems.holy_text.get());
-                        output.accept(ModItems.graft.get());
-                        output.accept(ModItems.aspiraton.get());
                     }).build());
 
     public static final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_blocks_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_blocks_tab",
-            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModBlocks.veinseep.get()))
+            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModBlocks.avolition.get()))
                     .withTabsBefore(give_me_my_skin_back_maryl_items_tab.getId())
                     .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_blocks"))
                     .displayItems((itemDisplayParameters, output) -> {
-                        output.accept(ModBlocks.veinseep.get());
-                        output.accept(ModBlocks.veinseep_deepslate.get());
                         output.accept(ModBlocks.avolition.get());
                         output.accept(ModBlocks.dustbricks.get());
                         output.accept(ModBlocks.aspiraton_block.get());
+                    }).build());
+
+    public static final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_tools_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_tools_tab",
+            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModItems.chisel.get()))
+                    .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_tools"))
+                    .displayItems((itemDisplayParameters, output) -> {
+                        output.accept(ModItems.chisel.get());
+                    }).build());
+
+
+    public static final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_natural_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_natural_tab",
+            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModBlocks.veinseep.get()))
+                    .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_natural"))
+                    .displayItems((itemDisplayParameters, output) -> {
+                        output.accept(ModBlocks.veinseep.get());
+                        output.accept(ModBlocks.veinseep_deepslate.get());
+                        output.accept(ModItems.salt.get());
+                    }).build());
+
+    public static final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_ingredients_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_ingredients_tab",
+            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModItems.aspiraton.get()))
+                    .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_ingredients"))
+                    .displayItems((itemDisplayParameters, output) -> {
+                        output.accept(ModItems.aspiraton.get());
+                        output.accept(ModItems.dust.get());
+                        output.accept(ModItems.dust_ball.get());
+                    }).build());
+
+    public static final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_functional_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_functional_tab",
+            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModBlocks.Magic_Block.get()))
+                    .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_functional"))
+                    .displayItems((itemDisplayParameters, output) -> {
+                        output.accept(ModBlocks.Magic_Block.get());
+                    }).build());
+
+    final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_food_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_food_tab",
+            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModItems.placeholder.get()))
+                    .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_food"))
+                    .displayItems((itemDisplayParameters, output) -> {
+                        output.accept(ModItems.placeholder.get());
+                        output.accept(ModItems.graft.get());
+                        output.accept(ModItems.pelt.get());
                     }).build());
 
 
