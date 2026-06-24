@@ -12,7 +12,8 @@
   "item.horrormod.holy_text": "Holy Text",
   "item.horrormod.aspiraton": "Aspiraton",
   "item.horrormod.chisel": "Chisel",
-  "item.horrormod.placeholder": "placeholder",
+  "item.horrormod.placeholderfood": "placeholder food",
+  "item.horrormod.placeholderfuel": "placeholder fuel",
 
   "block.horrormod.veinseep": "Veinseep",
   "block.horrormod.veinseep_deepslate": "Deepslate Veinseep",
@@ -23,11 +24,18 @@
   "block.horrormod.aspiraton_drop": "Aspiraton",
   "block.horrormod.magic_block": "Magic Block",
 
-  "creativetab.horrormod.give_me_my_skin_back_maryl_items": "Give Me My Skin Back, Maryl Items",
-  "creativetab.horrormod.give_me_my_skin_back_maryl_blocks": "Give Me My Skin Back, Maryl Building Blocks",
-  "creativetab.horrormod.give_me_my_skin_back_maryl_natural": "Give Me My Skin Back, Maryl Naturals",
-  "creativetab.horrormod.give_me_my_skin_back_maryl_tools": "Give Me My Skin Back, Maryl Tools",
-  "creativetab.horrormod.give_me_my_skin_back_maryl_functional": "Give Me My Skin Back, Maryl Functional Blocks",
-  "creativetab.horrormod.give_me_my_skin_back_maryl_ingredients": "Give Me My Skin Back, Maryl Ingredients"
+  "creativetab.horrormod.give_me_my_skin_back_maryl_items": "Give Me My Skin Back, Maryl: Items",
+  "creativetab.horrormod.give_me_my_skin_back_maryl_blocks": "Give Me My Skin Back, Maryl: Building Blocks",
+  "creativetab.horrormod.give_me_my_skin_back_maryl_natural": "Give Me My Skin Back, Maryl: Naturals",
+  "creativetab.horrormod.give_me_my_skin_back_maryl_tools": "Give Me My Skin Back, Maryl: Tools",
+  "creativetab.horrormod.give_me_my_skin_back_maryl_functional": "Give Me My Skin Back, Maryl: Functional Blocks",
+  "creativetab.horrormod.give_me_my_skin_back_maryl_ingredients": "Give Me My Skin Back, Maryl: Ingredients",
+  "creativetab.horrormod.give_me_my_skin_back_maryl_food": "Give Me My Skin Back, Maryl: Food",
+
+  "tooltips.horrormod.magic_block.tooltip": "§4I think he wants me to turn something in...§r",
+  "tooltip.horrormod.chisel.shift_down": "Will change stone-based blocks to brick counterpart on right-click",
+  "tooltip.horrormod.chisel": "Press §4Shift§r for more information",
+  "tooltip.horrormod.placeholderfood": "Is this...edible?"
+
 
 }

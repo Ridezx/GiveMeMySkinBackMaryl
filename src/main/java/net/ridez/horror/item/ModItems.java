@@ -1,12 +1,18 @@
 package net.ridez.horror.item;
 
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import net.ridez.horror.HorrorMod;
 import net.ridez.horror.item.custom.ChiselItem;
+import net.ridez.horror.item.custom.FuelItem;
+
+import java.util.List;
 
 public class ModItems {
     public static final DeferredRegister<Item> ITEMS =
@@ -38,8 +44,16 @@ public class ModItems {
             ()->new Item(new Item.Properties()));
     public static final RegistryObject<Item> chisel = ITEMS.register("chisel",
             () -> new ChiselItem(new Item.Properties().durability(32)));
-public static final RegistryObject<Item> placeholder = ITEMS.register("placeholder",
-        () -> new Item(new Item.Properties().food(ModFoodProperties.placeholder)));
+    public static final RegistryObject<Item> placeholderfood = ITEMS.register("placeholderfood",
+        () -> new Item(new Item.Properties().food(ModFoodProperties.placeholderfood)) {
+            @Override
+            public void appendHoverText(ItemStack pStack, TooltipContext pContext, List<Component> pTooltipComponents, TooltipFlag pTooltipFlag) {
+                pTooltipComponents.add(Component.translatable("tooltip.horrormod.placeholderfood"));
+                super.appendHoverText(pStack, pContext, pTooltipComponents, pTooltipFlag);
+            }
+        });
+    public static final RegistryObject<Item> placeholderfuel = ITEMS.register("placeholderfuel",
+            () -> new FuelItem(new Item.Properties(),1200));
 
 
 

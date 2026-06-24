@@ -15,7 +15,7 @@ public class ModCreativeModeTabs {
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, HorrorMod.MOD_ID);
 
     public static final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_items_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_items_tab",
-            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModItems.pelt.get()))
+            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModItems.heroine.get()))
                     .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_items"))
                     .displayItems((itemDisplayParameters, output) -> {
                         output.accept(ModItems.cloth_strap.get());
@@ -68,13 +68,14 @@ public class ModCreativeModeTabs {
                     .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_functional"))
                     .displayItems((itemDisplayParameters, output) -> {
                         output.accept(ModBlocks.Magic_Block.get());
+                        output.accept(ModItems.placeholderfuel.get());
                     }).build());
 
-    final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_food_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_food_tab",
-            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModItems.placeholder.get()))
+    public static final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_food_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_food_tab",
+            () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModItems.pelt.get()))
                     .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_food"))
                     .displayItems((itemDisplayParameters, output) -> {
-                        output.accept(ModItems.placeholder.get());
+                        output.accept(ModItems.placeholderfood.get());
                         output.accept(ModItems.graft.get());
                         output.accept(ModItems.pelt.get());
                     }).build());

@@ -74,6 +74,7 @@ public class HorrorMod
             event.accept(ModItems.crank);
             event.accept(ModItems.speedy_car);
             event.accept(ModItems.holy_text);
+            event.accept(ModItems.placeholderfuel);
         }
         if(event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS)
         {
@@ -97,6 +98,7 @@ public class HorrorMod
         {
             event.accept(ModItems.pelt);
             event.accept(ModItems.graft);
+            event.accept(ModItems.placeholderfood);
         }
         if(event.getTabKey() == CreativeModeTabs.SPAWN_EGGS)
         {
