@@ -1,0 +1,14 @@
+{
+  "type": "horrormod:add_item",
+  "conditions": [
+    {
+      "condition": "minecraft:block_state_property",
+      "block": "minecraft:sweet_berry_bush"
+    },
+    {
+      "condition": "forge:can_tool_perform_action",
+      "action": "shears_dig"
+    }
+  ],
+  "item": "horrormod:sweet_berry_bush"
+}

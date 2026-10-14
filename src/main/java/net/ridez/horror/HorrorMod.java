@@ -15,8 +15,13 @@ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.ridez.horror.block.ModBlocks;
+import net.ridez.horror.entity.ModEntities;
+import net.ridez.horror.fluid.ModFluids;
 import net.ridez.horror.item.ModCreativeModeTabs;
 import net.ridez.horror.item.ModItems;
+import net.ridez.horror.loot.ModLootModifiers;
+import net.ridez.horror.recipe.ModRecipes;
+import net.ridez.horror.worldgen.ModFeatures;
 import org.slf4j.Logger;
 
 // The value here should match an entry in the META-INF/mods.toml file
@@ -39,6 +44,11 @@ public class HorrorMod
 
         ModItems.register(modEventBus);
         ModBlocks.register(modEventBus);
+        ModLootModifiers.register(modEventBus);
+        ModRecipes.register(modEventBus);
+        ModEntities.register(modEventBus);
+        ModFluids.register(modEventBus);
+        ModFeatures.register(modEventBus);
 
         modEventBus.addListener(this::addCreative);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
@@ -60,8 +70,10 @@ public class HorrorMod
         {
             event.accept(ModBlocks.veinseep);
             event.accept(ModBlocks.veinseep_deepslate);
+            event.accept(ModItems.sweet_berry_bush);
             event.accept(ModItems.salt);
             event.accept(ModItems.aspiraton);
+            event.accept(ModItems.aspiraton_drop);
         }
         if(event.getTabKey() == CreativeModeTabs.COLORED_BLOCKS)
         {
@@ -71,9 +83,11 @@ public class HorrorMod
         {
             event.accept(ModItems.heroine);
             event.accept(ModItems.straw);
+            event.accept(ModItems.toy_gun);
             event.accept(ModItems.crank);
-            event.accept(ModItems.speedy_car);
+            event.accept(ModBlocks.speedy_car);
             event.accept(ModItems.holy_text);
+            event.accept(ModItems.her_favorite_dress);
             event.accept(ModItems.placeholderfuel);
         }
         if(event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS)
@@ -88,6 +102,8 @@ public class HorrorMod
         }
         if(event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES)
         {
+            event.accept(ModItems.scalpel);
+            event.accept(ModItems.tar_bucket);
 
         }
         if(event.getTabKey() == CreativeModeTabs.COMBAT)
@@ -97,11 +113,16 @@ public class HorrorMod
         if(event.getTabKey() == CreativeModeTabs.FOOD_AND_DRINKS)
         {
             event.accept(ModItems.pelt);
+            event.accept(ModItems.grape_hugs);
+            event.accept(ModItems.rotted_pelt);
             event.accept(ModItems.graft);
             event.accept(ModItems.placeholderfood);
         }
         if(event.getTabKey() == CreativeModeTabs.SPAWN_EGGS)
         {
+            event.accept(ModItems.gustav_spawn_egg);
+            event.accept(ModItems.walter_spawn_egg);
+            event.accept(ModItems.frank_spawn_egg);
 
         }
     }

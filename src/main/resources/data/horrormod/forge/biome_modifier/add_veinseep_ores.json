@@ -1,0 +1,11 @@
+{
+  "type": "forge:add_features",
+  "biomes": "#minecraft:is_overworld",
+  "features": [
+    "horrormod:ore_veinseep",
+    "horrormod:ore_veinseep_medium",
+    "horrormod:ore_veinseep_large",
+    "horrormod:ore_veinseep_buried"
+  ],
+  "step": "underground_ores"
+}

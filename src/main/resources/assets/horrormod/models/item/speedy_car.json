@@ -1,6 +1,3 @@
 {
-  "parent": "minecraft:item/generated",
-  "textures": {
-    "layer0": "horrormod:item/"
-  }
+  "parent": "horrormod:block/speedy_car"
 }

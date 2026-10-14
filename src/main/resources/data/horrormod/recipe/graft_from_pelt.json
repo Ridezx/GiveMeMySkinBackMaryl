@@ -1,0 +1,16 @@
+{
+  "type": "horrormod:tool_damaging_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "horrormod:pelt"
+    },
+    {
+      "item": "horrormod:scalpel"
+    }
+  ],
+  "result": {
+    "count": 2,
+    "id": "horrormod:graft"
+  }
+}

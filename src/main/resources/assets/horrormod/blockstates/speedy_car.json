@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "horrormod:block/speedy_car"
+    },
+    "facing=east": {
+      "model": "horrormod:block/speedy_car",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "horrormod:block/speedy_car",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "horrormod:block/speedy_car",
+      "y": 270
+    }
+  }
+}

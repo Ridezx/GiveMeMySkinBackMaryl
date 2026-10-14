@@ -11,11 +11,11 @@
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "tutorialmod:avolition"
+          "name": "horrormod:avolition"
         }
       ],
       "rolls": 1.0
     }
   ],
-  "random_sequence": "tutorialmod:blocks/avolition"
+  "random_sequence": "horrormod:blocks/avolition"
 }

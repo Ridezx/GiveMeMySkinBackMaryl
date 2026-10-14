@@ -22,9 +22,14 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.salt.get());
                         output.accept(ModItems.heroine.get());
                         output.accept(ModItems.straw.get());
+                        output.accept(ModItems.toy_gun.get());
                         output.accept(ModItems.crank.get());
-                        output.accept(ModItems.speedy_car.get());
+                        output.accept(ModBlocks.speedy_car.get());
                         output.accept(ModItems.holy_text.get());
+                        output.accept(ModItems.her_favorite_dress.get());
+                        output.accept(ModItems.gustav_spawn_egg.get());
+                        output.accept(ModItems.walter_spawn_egg.get());
+                        output.accept(ModItems.frank_spawn_egg.get());
                     }).build());
 
     public static final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_blocks_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_blocks_tab",
@@ -42,6 +47,8 @@ public class ModCreativeModeTabs {
                     .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_tools"))
                     .displayItems((itemDisplayParameters, output) -> {
                         output.accept(ModItems.chisel.get());
+                        output.accept(ModItems.scalpel.get());
+                        output.accept(ModItems.tar_bucket.get());
                     }).build());
 
 
@@ -51,6 +58,7 @@ public class ModCreativeModeTabs {
                     .displayItems((itemDisplayParameters, output) -> {
                         output.accept(ModBlocks.veinseep.get());
                         output.accept(ModBlocks.veinseep_deepslate.get());
+                        output.accept(ModItems.sweet_berry_bush.get());
                         output.accept(ModItems.salt.get());
                     }).build());
 
@@ -59,6 +67,7 @@ public class ModCreativeModeTabs {
                     .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_ingredients"))
                     .displayItems((itemDisplayParameters, output) -> {
                         output.accept(ModItems.aspiraton.get());
+                        output.accept(ModItems.aspiraton_drop.get());
                         output.accept(ModItems.dust.get());
                         output.accept(ModItems.dust_ball.get());
                     }).build());
@@ -78,6 +87,8 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.placeholderfood.get());
                         output.accept(ModItems.graft.get());
                         output.accept(ModItems.pelt.get());
+                        output.accept(ModItems.rotted_pelt.get());
+                        output.accept(ModItems.grape_hugs.get());
                     }).build());
 
 

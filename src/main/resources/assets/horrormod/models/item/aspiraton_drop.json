@@ -1,3 +1,6 @@
 {
-  "parent": "minecraft:block/aspiraton"
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "horrormod:item/aspiraton_drop"
+  }
 }

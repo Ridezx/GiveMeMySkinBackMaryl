@@ -1,0 +1,6 @@
+{
+  "type": "forge:add_features",
+  "biomes": "#forge:is_swamp",
+  "features": "horrormod:tar_pit",
+  "step": "lakes"
+}

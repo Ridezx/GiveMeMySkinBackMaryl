@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "horrormod:item/"
+    "layer0": "horrormod:item/straw"
   }
 }
