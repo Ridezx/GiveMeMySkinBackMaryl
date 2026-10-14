@@ -1,0 +1,10 @@
+{
+  "java.import.gradle.java.home": "/usr/lib/jvm/temurin-21-jdk",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-21",
+      "path": "/usr/lib/jvm/temurin-21-jdk",
+      "default": true
+    }
+  ]
+}
