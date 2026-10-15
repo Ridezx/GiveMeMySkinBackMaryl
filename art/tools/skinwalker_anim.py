@@ -3,7 +3,7 @@ Writes art/skinwalker_blockout.bbmodel (rig + animations) and preview images.
 Coordinates are Blockbench pixels: feet at y=0, the face toward -Z. Rotations are Blockbench group
 rotations in degrees [x, y, z], Euler order ZYX (X applied first), same sign as Blockbench's editor.
 """
-import json, math, os, sys, uuid
+import itertools, json, math, os, sys, uuid
 from PIL import Image, ImageDraw
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "."
@@ -18,8 +18,7 @@ BONES = [
     ("chest", "torso", (0, 48, 0)),
     ("neck", "chest", (0, 60, -1)),
     ("head", "neck", (0, 65, -1)),
-    ("skin", "chest", (0, 59, 1)),
-    ("hood", "head", (0, 65, -1)),     # the stolen skin over its head moves with the head
+    ("jaw", "head", (0, 67.2, 0.5)),   # hinged in front of the ears, so it can open (screaming)
 ]
 CUBES = []  # (name, bone, from, to, tone, inflate)
 def cube(name, bone, a, b, tone, inflate=0.0):
@@ -27,12 +26,105 @@ def cube(name, bone, a, b, tone, inflate=0.0):
 
 cube("pelvis", "hips", (-4, 38, -2.5), (4, 41, 2.5), 150)
 cube("belly", "torso", (-3, 41, -2), (3, 48, 2), 138)              # tucked waist
-cube("ribcage", "chest", (-4.5, 48, -4), (4.5, 60, 3), 160)       # deep, narrow, dog-like chest
+# Human hips and stomach (final positions; the torso is below the lifted chest): the hip bones jutting at
+# the front, rounded buttocks behind, the groin below; a gaunt stomach with three rows of abdominal muscle, a navel,
+# and the obliques along the sides of the waist.
+cube("groin", "hips", (-2, 36.5, -2), (2, 38, 1), 145)
+cube("ab_low", "torso", (-2, 42, -2.5), (2, 45.5, -2), 142)
+cube("ab_mid", "torso", (-2, 45.8, -2.5), (2, 49.3, -2), 142)
+cube("ab_high", "torso", (-2, 49.6, -2.5), (2, 53, -2), 142)
+cube("navel", "torso", (-0.35, 45.85, -2.52), (0.35, 46.5, -2.5), 60)
+for side, s in (("right", -1), ("left", 1)):
+    x0, x1 = sorted((s * 2.8, s * 4.4)); cube(f"{side}_hip_bone", "hips", (x0, 40, -2.9), (x1, 42, -1.2), 160)
+    # each buttock built up in layers so it's rounded: fullest in the middle, a fold underneath, tapering
+    # into the lower back above, with a cleft between the two
+    for name, (xa, xb), (ya, yb), back in (("buttock", (0.3, 3.9), (35.5, 39.5), 2.9),
+                                           ("buttock_full", (0.8, 3.4), (36.3, 38.8), 3.4),
+                                           ("buttock_fold", (0.8, 3.3), (34.8, 35.5), 2.4),
+                                           ("buttock_top", (0.6, 3.6), (39.5, 40.5), 2.5)):
+        x0, x1 = sorted((s * xa, s * xb)); cube(f"{side}_{name}", "hips", (x0, ya, 1.2), (x1, yb, back), 150)
+    x0, x1 = sorted((s * 3, s * 3.4)); cube(f"{side}_oblique", "torso", (x0, 43, -1.6), (x1, 53, 1.4), 140)
+# Deep, narrow, dog-like chest, caved in down the middle: the sides come forward, the centre sinks back,
+# with the breastbone in the hollow; a sloping trapezius up to the neck.
+cube("ribcage", "chest", (-4.5, 48, -3), (4.5, 60, 3), 160)
+cube("sternum", "chest", (-0.6, 50, -3.5), (0.6, 58.5, -3), 150)
+cube("trapezius", "chest", (-3.5, 60, -1), (3.5, 61.5, 2.5), 155)
+for side, s in (("right", -1), ("left", 1)):
+    x0, x1 = sorted((s * 1.5, s * 4.5)); cube(f"{side}_chest_side", "chest", (x0, 49, -4), (x1, 59, -3), 160)
 cube("neck", "neck", (-1.5, 60, -2.5), (1.5, 65, 0.5), 150)        # long neck
-cube("skull", "head", (-4, 65, -5), (4, 73, 3), 178)                # the human head
-cube("skin_hood", "hood", (-4, 67, -3), (4, 73, 3), 112, 0.6)       # stolen skin over the back of the head
-cube("back_drape", "skin", (-5, 42, 3), (5, 59, 4), 112)
-cube("shoulder_drape", "skin", (-5, 58, -4), (5, 60, 3), 112, 0.3)
+# the nape: muscle behind the neck holding up the skull, thicker where it meets the head
+cube("nape", "neck", (-2, 60, 0.5), (2, 63.5, 2.2), 150)
+cube("upper_nape", "neck", (-2.5, 63.5, 0.5), (2.5, 65.5, 3), 150)
+# The human head, built from a skull's side profile: a big domed cranium that bulges out at the back, a
+# forehead sloping back from the brow ridge, the face set lower and jutting forward under the eyes, eye
+# sockets sunk into the face with a rim around them, cheekbones running back as an arch to the ear, a nose
+# that is a hole under projecting nasal bones, teeth curving around the front, the ear hole with the mastoid
+# bump behind it. The jaw (an L-shaped mandible hinged in front of the ear) still has skin on it.
+# Face toward -Z; the head bone pivots on the neck at (0, 65, -1).
+BONE, EYE, DARK, SKIN, TEETH = 200, 255, 35, 170, 230
+def sym(name, bone, xa, xb, y, z, tone):
+    """A pair of cubes mirrored left/right (xa..xb on the left side, as distances from the middle)."""
+    for side, s in (("right", -1), ("left", 1)):
+        x0, x1 = sorted((s * xa, s * xb))
+        cube(f"{side}_{name}", bone, (x0, y[0], z[0]), (x1, y[1], z[1]), tone)
+def mid(name, bone, w, y, z, tone):
+    cube(name, bone, (-w, y[0], z[0]), (w, y[1], z[1]), tone)
+# cranium, top down: each layer's front steps back (sloping forehead) and the back bulges out (occiput)
+mid("crown", "head", 2.5, (74.5, 75.5), (-1.5, 4), BONE)
+mid("cranium_top", "head", 3.5, (73, 74.5), (-2.8, 5.6), BONE)
+mid("cranium", "head", 4.2, (71, 73), (-3.3, 6.4), BONE)
+mid("cranium_back", "head", 4, (68.5, 71), (1, 6.8), BONE)             # behind the temples, widest bulge
+mid("temples", "head", 3.7, (68.5, 71), (-2.6, 1), BONE)              # narrower: the hollow at the temple
+mid("skull_base", "head", 3.5, (67, 68.5), (-1, 6), BONE)
+mid("occiput", "head", 3, (65.5, 67), (0.5, 4.8), BONE)             # base of the skull into the nape
+# forehead and brow
+mid("forehead", "head", 3.6, (72, 73), (-3.7, -3.3), BONE)
+mid("brow_ridge", "head", 4, (71, 72), (-4.3, -3.3), BONE)
+# eye sockets: the eyes sit at the back of deep pits, with the bridge of the nose between and a rim outside
+sym("eye", "head", 0.7, 3.4, (68.6, 70.8), (-2.9, -2.6), EYE)         # glows
+sym("orbit_rim", "head", 3.6, 4.1, (68.3, 71), (-4, -2.5), BONE)
+mid("nose_bridge", "head", 0.5, (68.5, 71), (-4.6, -2.6), BONE)
+mid("nasal_bones", "head", 0.6, (68, 69), (-5, -2.6), BONE)
+# cheekbones and the zygomatic arch running back along the side of the head to just in front of the ear
+sym("cheekbone", "head", 2.2, 4.1, (66.8, 68.3), (-4, -1.5), BONE)
+sym("cheek_arch", "head", 3.9, 4.4, (67.2, 68.2), (-1.5, 1.2), BONE)
+sym("cheek_hollow", "head", 2.4, 3.4, (65.3, 67.2), (-1.5, 0.5), 180)   # recessed under the arch
+for (ya, yb), (xa, xb) in itertools.product(((68.3, 68.9), (70.4, 71)), ((0.5, 1.1), (2.9, 3.6))):
+    sym(f"orbit_corner_{ya:.0f}_{xa:.0f}", "head", xa, xb, (ya, yb), (-4, -2.6), BONE)   # rounds the sockets
+# the face below the eyes jutting forward (maxilla), with the nose hole in it
+sym("maxilla", "head", 0.6, 2.4, (66.3, 67.8), (-4.6, -1.5), BONE)
+mid("under_nose", "head", 0.6, (65.5, 66.3), (-4.8, -1.5), BONE)
+mid("nose_hole", "head", 0.6, (66.3, 68), (-3.4, -3.2), DARK)
+mid("palate", "head", 2.4, (65.3, 66.3), (-4.2, -1.5), BONE)
+# upper teeth, curving around the front of the mouth
+mid("upper_front_teeth", "head", 1.6, (64.8, 65.8), (-4.9, -4.2), TEETH)
+sym("upper_side_teeth", "head", 1.6, 2.4, (64.9, 65.8), (-4.3, -2.8), TEETH)
+sym("upper_molars", "head", 1.8, 2.6, (64.9, 65.8), (-2.8, -1.5), TEETH)
+mid("mouth", "head", 2.2, (63.9, 65.3), (-3.6, -3.3), DARK)            # dark inside of the open mouth
+# ear hole with a rim, and the mastoid bump behind it
+sym("ear_hole", "head", 3.45, 3.55, (66.9, 67.9), (0.9, 1.8), DARK)
+sym("ear_rim_top", "head", 3.5, 3.9, (67.9, 68.3), (0.6, 2.1), 185)
+sym("ear_rim_back", "head", 3.5, 3.9, (66.7, 67.9), (1.8, 2.2), 185)
+sym("mastoid", "head", 3.0, 3.8, (65.5, 66.9), (1.8, 3.0), BONE)
+# the jaw: L-shaped, the back edge rising to the hinge in front of the ear, the corner of the jaw, the body
+# along each side to the chin at the front; skin still on it, the lower teeth along the top
+sym("jaw_ramus", "jaw", 2.9, 3.6, (63.5, 67.2), (-0.5, 0.8), SKIN)
+sym("jaw_body", "jaw", 2.2, 3.3, (62.6, 64), (-4, 0.8), SKIN)
+mid("chin", "jaw", 2.2, (62.6, 64), (-4.6, -3.2), SKIN)
+mid("chin_point", "jaw", 1.4, (62.2, 63), (-4.9, -3.6), SKIN)
+mid("jaw_floor", "jaw", 2.2, (62.6, 63.4), (-3.2, 0.5), SKIN)
+mid("lower_front_teeth", "jaw", 1.5, (64, 64.6), (-4.5, -3.9), TEETH)
+sym("lower_side_teeth", "jaw", 1.5, 2.2, (64, 64.6), (-4, -2.8), TEETH)
+sym("lower_molars", "jaw", 1.8, 2.6, (64, 64.6), (-2.8, -1.5), TEETH)
+# A bony back: shoulder blades standing out of the upper back, a ridge of vertebrae down the spine, and a
+# muscle either side of the spine on the waist so the spine sits in a groove.
+for side, s in (("right", -1), ("left", 1)):
+    x0, x1 = sorted((s * 1, s * 4.2)); cube(f"{side}_shoulder_blade", "chest", (x0, 52, 3), (x1, 58.5, 3.6), 165)
+    x0, x1 = sorted((s * 0.6, s * 2.6)); cube(f"{side}_back_muscle", "torso", (x0, 41, 2), (x1, 54, 2.5), 140)
+for i, y in enumerate((49, 51.5, 54, 56.5)):
+    cube(f"vertebra_upper{i + 1}", "chest", (-0.5, y, 3), (0.5, y + 1, 3.6), 170)
+for i, y in enumerate((42, 44.5, 47, 49.5, 52)):
+    cube(f"vertebra_lower{i + 1}", "torso", (-0.5, y, 2), (0.5, y + 1, 2.8), 165)
 
 for side, s in (("right", -1), ("left", 1)):
     def xs(a, b):
@@ -43,9 +135,29 @@ for side, s in (("right", -1), ("left", 1)):
               (f"{side}_hand", f"{side}_forearm", (s * 6, 27, 0))]
     x0, x1 = xs(5, 7)
     cube(f"{side}_upper_arm", f"{side}_arm", (x0, 43, -1), (x1, 58, 1), 150)
+    # rounded shoulder: a deltoid cap over the top of the arm, stepped in at the very top
+    x0, x1 = xs(4.6, 7.4); cube(f"{side}_deltoid", f"{side}_arm", (x0, 55, -1.6), (x1, 59, 1.6), 152)
+    x0, x1 = xs(5, 7); cube(f"{side}_shoulder_cap", f"{side}_arm", (x0, 59, -1.1), (x1, 59.7, 1.1), 152)
     cube(f"{side}_forearm", f"{side}_forearm", (x0, 27, -1), (x1, 43, 1), 145)
-    hx0, hx1 = xs(4.5, 7.5)
-    cube(f"{side}_hand", f"{side}_hand", (hx0, 21, -1), (hx1, 27, 1), 155)
+    # not flat cubes: a thicker middle on the upper arm (biceps in front, triceps behind), a bony point at
+    # the back of the elbow, and a forearm that's thicker near the elbow and thins out to the wrist
+    x0, x1 = xs(4.8, 7.2); cube(f"{side}_biceps", f"{side}_arm", (x0, 47, -1.4), (x1, 54, 1.2), 152)
+    x0, x1 = xs(5.3, 6.7); cube(f"{side}_elbow", f"{side}_forearm", (x0, 41.5, 1), (x1, 44.5, 1.6), 160)
+    x0, x1 = xs(4.8, 7.2); cube(f"{side}_forearm_muscle", f"{side}_forearm", (x0, 35, -1.3), (x1, 42, 1.2), 147)
+    # hand: wrist and a thin palm (the palm faces backward when the arm hangs, so laying it flat on the
+    # ground is just bending the wrist forward), then four long fingers side by side and a thumb on the inner
+    # edge, each in two segments on their own bones so they can bend; finger1 (index) is nearest the body
+    x0, x1 = xs(5.1, 6.9); cube(f"{side}_wrist", f"{side}_hand", (x0, 26, -0.6), (x1, 27, 0.6), 155)
+    x0, x1 = xs(4.5, 7.5); cube(f"{side}_palm", f"{side}_hand", (x0, 23.5, -0.7), (x1, 26, 0.7), 155)
+    for i, (xc, l1, l2) in enumerate(((4.85, 2.1, 1.9), (5.6, 2.4, 2.2), (6.35, 2.3, 2.0), (7.1, 1.8, 1.6))):
+        f = f"{side}_finger{i + 1}"; x0, x1 = xs(xc - 0.35, xc + 0.35)
+        BONES += [(f, f"{side}_hand", (s * xc, 23.5, 0)), (f + "_tip", f, (s * xc, 23.5 - l1, 0))]
+        cube(f, f, (x0, 23.5 - l1, -0.5), (x1, 23.5, 0.5), 155)
+        cube(f + "_tip", f + "_tip", (x0, 23.5 - l1 - l2, -0.5), (x1, 23.5 - l1, 0.5), 158)
+    x0, x1 = xs(3.8, 4.5)
+    BONES += [(f"{side}_thumb", f"{side}_hand", (s * 4.2, 25.2, 0)), (f"{side}_thumb_tip", f"{side}_thumb", (s * 4.2, 23.4, 0))]
+    cube(f"{side}_thumb", f"{side}_thumb", (x0, 23.4, -0.4), (x1, 25.2, 0.4), 155)
+    cube(f"{side}_thumb_tip", f"{side}_thumb_tip", (x0, 21.8, -0.4), (x1, 23.4, 0.4), 158)
     # dog hind legs: hip, knee, hock; the "foot" is the long ankle bone, toes at its end
     BONES += [(f"{side}_leg", "hips", (s * 3.5, 38, 0)),
               (f"{side}_shin", f"{side}_leg", (s * 3.5, 18, 0)),
@@ -54,11 +166,37 @@ for side, s in (("right", -1), ("left", 1)):
     cube(f"{side}_thigh", f"{side}_leg", (tx0, 18, -2), (tx1, 38, 1), 150)      # long thigh
     sx0, sx1 = xs(2.5, 4.5)
     cube(f"{side}_shin", f"{side}_shin", (sx0, 2, -1.5), (sx1, 18, 0.5), 145)
-    cube(f"{side}_ankle", f"{side}_foot", (sx0, -12, -1.5), (sx1, 2, 0.5), 140)
-    fx0, fx1 = xs(2, 5)
-    cube(f"{side}_toes", f"{side}_foot", (fx0, -14, -5), (fx1, -12, 0.5), 140)
+    # human muscle on the dog legs: quadriceps down the front of the thigh, hamstring behind, a kneecap,
+    # a calf behind the shin and a ridge down its front, the heel and Achilles at the back of the hock
+    x0, x1 = xs(1.7, 5.3); cube(f"{side}_quadriceps", f"{side}_leg", (x0, 24, -2.6), (x1, 35, 0.8), 152)
+    x0, x1 = xs(2.2, 4.8); cube(f"{side}_hamstring", f"{side}_leg", (x0, 21, 1), (x1, 34, 1.7), 148)
+    x0, x1 = xs(2.8, 4.2); cube(f"{side}_kneecap", f"{side}_leg", (x0, 17.5, -2.5), (x1, 20.5, -1.9), 160)
+    x0, x1 = xs(2.2, 4.8); cube(f"{side}_calf", f"{side}_shin", (x0, 9, 0.4), (x1, 16.5, 1.6), 147)
+    x0, x1 = xs(3.2, 3.8); cube(f"{side}_shin_ridge", f"{side}_shin", (x0, 4, -1.9), (x1, 16, -1.5), 150)
+    x0, x1 = xs(3.2, 3.8); cube(f"{side}_achilles", f"{side}_shin", (x0, 2, 0.5), (x1, 9, 1.1), 146)  # calf down to the heel
+    # A big human foot (to carry its height), standing on its toes. The foot bone runs from the ankle (y=2)
+    # down to the ball of the foot (y=-12); the top of the foot faces -Z, the sole +Z. A rounded heel at the
+    # back of the ankle, ankle bones either side, a narrow foot that fans out wider toward the toes, an arch in the sole between the heel and the ball, and five toes in two
+    # segments each on their own bones (big toe on the inside). Every sole stays at y=-14, so the foot
+    # meets the ground as before.
+    x0, x1 = xs(2.6, 4.4); cube(f"{side}_heel", f"{side}_foot", (x0, -1, -0.2), (x1, 2.6, 1.6), 142)
+    x0, x1 = xs(2.9, 4.1); cube(f"{side}_heel_back", f"{side}_foot", (x0, -0.5, 1.6), (x1, 2.2, 2.0), 142)
+    for name, (a, b) in (("inner_ankle", (2.1, 2.6)), ("outer_ankle", (4.4, 4.9))):
+        x0, x1 = xs(a, b); cube(f"{side}_{name}", f"{side}_foot", (x0, 0, -1.0), (x1, 2.4, 0.4), 150)
+    x0, x1 = xs(2.6, 4.4); cube(f"{side}_foot_upper", f"{side}_foot", (x0, -8, -1.3), (x1, 0, 0.3), 140)    # narrow
+    x0, x1 = xs(2.0, 5.0); cube(f"{side}_foot_lower", f"{side}_foot", (x0, -12, -2.0), (x1, -8, 0.6), 141)  # fans out
+    x0, x1 = xs(2.8, 4.2); cube(f"{side}_instep", f"{side}_foot", (x0, -9, -1.7), (x1, 0, -1.3), 144)       # top of the foot
+    x0, x1 = xs(2.2, 4.8); cube(f"{side}_sole_pad", f"{side}_foot", (x0, -12, 0.6), (x1, -10, 1.1), 141)    # arch behind it
+    x0, x1 = xs(1.6, 5.6); cube(f"{side}_ball", f"{side}_foot", (x0, -14, -3.4), (x1, -12, 0.9), 140)       # ball of the foot
+    for i, (xa, xb, top, l1, l2) in enumerate(((1.7, 3.0, -12.6, 1.8, 1.6), (3.15, 3.75, -12.9, 1.6, 1.4),
+                                               (3.9, 4.45, -12.95, 1.4, 1.2), (4.6, 5.1, -13.0, 1.1, 1.0),
+                                               (5.2, 5.6, -13.2, 0.8, 0.7))):
+        t = f"{side}_toe{i + 1}"; x0, x1 = xs(xa, xb); yc = (-14 + top) / 2; xc = s * (xa + xb) / 2
+        BONES += [(t, f"{side}_foot", (xc, yc, -3.4)), (t + "_tip", t, (xc, yc, -3.4 - l1))]
+        cube(t, t, (x0, -14, -3.4 - l1), (x1, top, -3.4), 140)
+        cube(t + "_tip", t + "_tip", (x0, -14, -3.4 - l1 - l2), (x1, top - 0.1, -3.4 - l1), 143)
 
-# Longer body, like the drawing: lift the chest and everything attached to it (arms, neck, head, skin)
+# Longer body, like the drawing: lift the chest and everything attached to it (arms, neck, head)
 # and stretch the belly to fill the gap.
 BELLY_EXTRA = 8
 _parent = {n: par for n, par, _ in BONES}
@@ -137,9 +275,174 @@ def lowest(pose):
 def highest(pose, lift):
     return max(world(p, c[1], pose, lift)[1] for c in CUBES for p in corners(c))
 
+# ---------------------------------------------------------------- hands
+# Rotations as 3x3 matrices, matching rot_zyx: R = Rz * Ry * Rx (X applied first). A bone's world rotation is
+# its parents' times its own.
+def rmat(r):
+    a, b, c = (math.radians(v) for v in r)
+    ca, sa, cb, sb, cc, sc = math.cos(a), math.sin(a), math.cos(b), math.sin(b), math.cos(c), math.sin(c)
+    return [[cc * cb, cc * sb * sa - sc * ca, cc * sb * ca + sc * sa],
+            [sc * cb, sc * sb * sa + cc * ca, sc * sb * ca - cc * sa],
+            [-sb, cb * sa, cb * ca]]
+def mmul(a, b):
+    return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)] for i in range(3)]
+def mvec(m, v):
+    return tuple(sum(m[i][k] * v[k] for k in range(3)) for i in range(3))
+def mT(m):
+    return [[m[j][i] for j in range(3)] for i in range(3)]
+def world_rot(bone, pose):
+    chain = []
+    while bone:
+        chain.append(bone); bone = PARENT[bone]
+    m = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    for b in reversed(chain):
+        m = mmul(m, rmat(pose.get(b, (0, 0, 0))))
+    return m
+def euler_zyx(m, near=(0, 0, 0)):
+    """Blockbench angles (x, y, z) for a rotation matrix, each taken within 180 of `near` so keyframes
+    don't spin the long way round between frames."""
+    b = math.degrees(math.asin(max(-1.0, min(1.0, -m[2][0]))))
+    a = math.degrees(math.atan2(m[2][1], m[2][2])); c = math.degrees(math.atan2(m[1][0], m[0][0]))
+    best = None
+    for sol in ((a, b, c), (a + 180, 180 - b, c + 180)):        # the two angle sets for the same rotation
+        sol = tuple(v + 360 * round((n - v) / 360) for v, n in zip(sol, near))
+        d = sum(abs(v - n) for v, n in zip(sol, near))
+        if best is None or d < best[0]:
+            best = (d, sol)
+    return best[1]
+
+FINGER_BONES = [f"finger{i}" for i in range(1, 5)] + ["thumb"]
+HAND_FLAT = 0.7          # wrist height when the palm lies flat on the ground (half the palm's thickness)
+PALM_LENGTH = 3.5        # wrist to knuckles
+PALM_RAISE = 3.0         # how far the heel of the hand can lift (wrist height gained) with the knuckles down
+FINGER_REACH = 2.2       # length of the knuckle segment, which angles down to reach further
+FINGER_MAX = 50.0        # ...but never more than this far down (no standing on the fingertips)
+RELEASE = 4.0            # once the fingers can't reach, the hand peels off over this much more wrist height
+
+def set_fingers(pose, side, curl, tip, thumb=None):
+    """Bend every finger of one hand: curl at the knuckles, tip at the middle joint (degrees, + toward the
+    palm). The palm faces +Z, so curling is a -X rotation on both hands."""
+    thumb = thumb if thumb is not None else (curl * 0.5, tip * 0.5)
+    for f in FINGER_BONES:
+        c, t = thumb if f == "thumb" else (curl, tip)
+        pose[f"{side}_{f}"] = (-c, 0, 0); pose[f"{side}_{f}_tip"] = (-t, 0, 0)
+
+def flat_hand(side, pose, raise_deg=0.0, near=None):
+    """Local rotation of the hand bone that lays the palm flat on the ground, fingers pointing where the body
+    faces (splayed a little outward); raise_deg lifts the heel of the hand, pivoting on the knuckles."""
+    yaw = pose.get("root", (0, 0, 0))[1] + (8 if side == "right" else -8)
+    d = rot_zyx((0, 0, -1), (0, yaw, 0))
+    p = math.radians(raise_deg)
+    f = tuple(d[i] * math.cos(p) + (0, -1, 0)[i] * math.sin(p) for i in range(3))   # wrist -> knuckles
+    n = tuple((0, -1, 0)[i] * math.cos(p) - d[i] * math.sin(p) for i in range(3))   # out of the palm
+    y = tuple(-v for v in f)                                                         # the fingers point down local Y
+    z = n                                                                            # the palm faces local +Z
+    x = (y[1] * z[2] - y[2] * z[1], y[2] * z[0] - y[0] * z[2], y[0] * z[1] - y[1] * z[0])
+    target = [[x[i], y[i], z[i]] for i in range(3)]
+    return euler_zyx(mmul(mT(world_rot(f"{side}_forearm", pose)), target), near or pose.get(f"{side}_hand", (0, 0, 0)))
+
+def plant_hands(pose):
+    """Both palms flat on the ground, fingers flat (used to build the all-fours stances)."""
+    for side in ("right", "left"):
+        pose[f"{side}_hand"] = flat_hand(side, pose)
+        set_fingers(pose, side, 0, 6, (0, 6))
+    return pose
+
+def pose_hand(pose, side, lift, mode, near=None):
+    """What one hand does in a frame. Near the ground the palm lies flat; as the wrist rises the heel of the
+    hand lifts while the fingers stay on the ground (push-off), then the fingers reach down from the
+    knuckles, then the hand lets go and the fingers curl loosely while it swings. Reaching upward (climbing)
+    the fingers hook to grip; lying on its side (or 'relaxed') the hand just rests half-curled. The
+    behaviours blend into each other so nothing snaps."""
+    base = pose.get(f"{side}_hand", (0, 0, 0))
+    keys = [f"{side}_hand"] + [f"{side}_{f}{t}" for f in FINGER_BONES for t in ("", "_tip")]
+    relaxed = {f"{side}_hand": (base[0] - 8, base[1], base[2])}; set_fingers(relaxed, side, 20, 25)
+    grip = {f"{side}_hand": base}; set_fingers(grip, side, 70, 80, (35, 30))
+    up = mvec(world_rot(f"{side}_forearm", pose), (0, -1, 0))[1]           # > 0: forearm pointing up
+    w_grip = smooth(max(0.0, min(1.0, (up - 0.1) / 0.4)))
+    roll = abs(mvec(world_rot("chest", pose), (1, 0, 0))[1])            # 1: lying on its side
+    w_rest = 1.0 if mode == "relaxed" else smooth(max(0.0, min(1.0, (roll - 0.55) / 0.25)))
+    if w_grip < 1 and w_rest < 1:
+        ground = ground_hand(pose, side, lift, near, relaxed)
+    else:
+        ground = relaxed
+    out = {k: tuple(ground[k][i] + (relaxed[k][i] - ground[k][i]) * w_rest for i in range(3)) for k in keys}
+    out = {k: tuple(out[k][i] + (grip[k][i] - out[k][i]) * w_grip for i in range(3)) for k in keys}
+    pose.update(out)
+
+def ground_hand(pose, side, lift, near, relaxed):
+    def reach(hh):
+        """The hand reaching hh below its flat-palm position: the heel of the hand lifts first (up to ~60
+        degrees, knuckles on the ground), then the fingers angle down from the knuckles, fingertips flat."""
+        r = math.degrees(math.asin(max(0.0, min(PALM_RAISE, hh)) / PALM_LENGTH))
+        phi = math.degrees(math.asin(max(0.0, min(math.sin(math.radians(FINGER_MAX)), (hh - PALM_RAISE) / FINGER_REACH))))
+        q = dict(pose); q[f"{side}_hand"] = flat_hand(side, pose, r, near)
+        set_fingers(q, side, phi - r, 6 - phi, (phi - r, 6 - phi))      # the thumb lies flat with the fingers
+        low = min(world(c_, c[1], q, lift)[1] for c in CUBES if c[1].startswith((f"{side}_hand", f"{side}_finger", f"{side}_thumb")) for c_ in corners(c))
+        return q, low
+    full = PALM_RAISE + FINGER_REACH * math.sin(math.radians(FINGER_MAX))
+    q, low = reach(0.0)
+    if low > 0.02:                                     # the flat hand is above the ground: reach down to it
+        q_far, low_far = reach(full)
+        if low_far > 0.02:                             # can't reach: letting go, the fingers curling as it lifts
+            u = smooth(min(1.0, low_far / RELEASE))
+            return {k: tuple(q_far[k][i] + (relaxed[k][i] - q_far[k][i]) * u for i in range(3)) for k in relaxed}
+        lo, hi = 0.0, full                             # bisect the reach so the hand just touches the ground
+        for _ in range(18):
+            mid_ = (lo + hi) / 2
+            q, low = reach(mid_)
+            lo, hi = (mid_, hi) if low > 0 else (lo, mid_)
+        q, low = reach(hi)
+    return {k: q[k] for k in relaxed}
+
+for _side in ("right", "left"):
+    set_fingers(STAND, _side, 20, 25)          # at rest a real hand hangs half-curled
+
+HAND_KEYS = [f"{sd}_{b}" for sd in ("right", "left") for b in ["hand"] + [f + t for f in FINGER_BONES for t in ("", "_tip")]]
+
+def hand_pass(frames, mode="auto"):
+    """Pose the hands and fingers in every frame of an animation (see pose_hand). Where a hand would turn more
+    than 15 degrees between two keyframes, in-between keys are added so the hand is posed properly along the
+    way instead of the interpolation swinging it through the ground."""
+    def posed(fr, prev):
+        t, pose, lift = fr[:3]
+        grounded = abs(lift + lowest(pose)) < 0.01
+        if grounded and mode != "relaxed":
+            # seat the body as if both palms were flat (the shortest a hand can be); a hand whose wrist ends
+            # up higher then reaches down to the ground, so a reaching hand never props the body up
+            flat = dict(pose)
+            for side in ("right", "left"):
+                flat[f"{side}_hand"] = flat_hand(side, flat, 0.0, prev and prev[1][f"{side}_hand"]); set_fingers(flat, side, 0, 6, (0, 6))
+            lift = -lowest(flat)
+        p = dict(pose)
+        for side in ("right", "left"):
+            pose_hand(p, side, lift, mode, prev and prev[1][f"{side}_hand"])
+        if grounded and mode == "relaxed":
+            lift = -lowest(p)
+        return (t, p, lift) + tuple(fr[3:])
+    def turn(a_, b_):
+        return max(abs(a_[1][k][j] - b_[1][k][j]) for k in HAND_KEYS for j in range(3))
+    def between(a_, b_, u, pa, pb):
+        pose = blend(a_[1], b_[1], u)
+        ga = abs(a_[2] + lowest(a_[1])) < 0.01 and abs(b_[2] + lowest(b_[1])) < 0.01
+        # off the ground, follow the body heights the neighbouring keys ended up with after posing the hands
+        lift = -lowest(pose) if ga else pa[2] + (pb[2] - pa[2]) * u
+        return (a_[0] + (b_[0] - a_[0]) * u, pose, lift) + tuple(x + (y - x) * u for x, y in zip(a_[3:], b_[3:]))
+    def refine(ra, rb, pa, pb, depth):
+        """Keys between two raw frames: split in half while a hand turns more than 12 degrees between keys."""
+        if depth == 0 or turn(pa, pb) <= 12:
+            return [pb]
+        rm = between(ra, rb, 0.5, pa, pb); pm = posed(rm, pa)
+        return refine(ra, rm, pa, pm, depth - 1) + refine(rm, rb, pm, pb, depth - 1)
+    out = [posed(frames[0], None)]
+    for ra, rb in zip(frames, frames[1:]):
+        out += refine(ra, rb, out[-1], posed(rb, out[-1]), 5)
+    return out
+
 def stand_on_fours(pose, chest_abs, arm_tilt=0.0):
-    """Torso and chest in one straight line at chest_abs, arms straight down, then swing the femur up and back
-    from the hip until the straight-down tibia puts the toes on the ground level with the hands."""
+    """Torso and chest in one straight line at chest_abs, arms straight down with the palms flat on the
+    ground, then swing the femur up and back from the hip until the straight-down tibia puts the toes on the
+    ground level with the hands."""
     def with_femur(f):
         p = dict(pose); p["hips"] = (chest_abs, 0, 0); p["chest"] = (0, 0, 0)
         for side in ("right", "left"):
@@ -147,7 +450,7 @@ def stand_on_fours(pose, chest_abs, arm_tilt=0.0):
             p[f"{side}_arm"] = (-chest_abs + arm_tilt, a[1], a[2])   # arm straight down (+ forward tilt)
             p[f"{side}_leg"] = (f - chest_abs, l[1], l[2])     # femur at absolute angle f
             p[f"{side}_shin"] = (-f, 0, 0)                     # tibia straight down from the knee
-        return p
+        return plant_hands(p)                                  # palms flat on the ground
     def gap(p):
         low = lambda part: min(world(q, c[1], p)[1] for c in CUBES if c[1].endswith(part) for q in corners(c))
         return low("foot") - low("hand")                       # >0: toes higher than hands
@@ -516,7 +819,7 @@ def _run_spline_pose(t):
     return _frozen(pose)
 
 def _toe(side, pose, lift):
-    """The ball of the foot: bottom middle of the toes cube (rest coordinates y -14, z around -2)."""
+    """The ball of the foot: bottom middle of the ball cube (rest coordinates y -14, z around -2)."""
     x = -3.5 if side == "right" else 3.5
     return world((x, -14.0, -2.0), f"{side}_foot", pose, lift)
 
@@ -709,19 +1012,19 @@ def ledge_to_stand_frames():
 # of the hands,
 # hind legs close together out flat behind (the femur already runs up and back from the hip, so it only has
 # to drop, with the shin folded under it and the hock pointing back).
-LIE4 = mirror(P(hips=-90, neck=0, head=(0, 90, 0),
+LIE4 = mirror(P(hips=-90, neck=-12, head=(0, 90, 0),
                 right_arm=(12, 0, -5), right_forearm=168, right_hand=0,
                 right_leg=(-5, 0, -1), right_shin=175, right_foot=-170))
 # Sitting on its haunches (standing version): rear on the ground, knees drawn up high, torso upright,
 # forearms resting forward over the knees.
 SIT = mirror(P(hips=-6, chest=-12, neck=10, head=6,
                right_arm=(22, 0, -14), right_forearm=62, right_hand=10,
-               right_leg=(150, 0, -8), right_shin=-145, right_foot=90))
+               right_leg=(148, 0, -8), right_shin=-136, right_foot=75))   # buttocks and feet on the ground
 # Lying on its side like a person, curled a little: the hips roll it over (pivoting at the rear, so the fall
 # from sitting tips over sideways instead of swinging), arms folded in front, the head tilted down to rest on
 # its cheek, knees drawn up with the legs stacked together. The right side ends up underneath; its arm turns
 # in (+Z) so it lies under the body instead of propping it up, and the mirrored left one drapes over the top.
-SIDE = mirror(P(hips=(-24, 0, 86), chest=-14, neck=(0, 20, 40), head=(0, -20, -30),
+SIDE = mirror(P(hips=(-24, 0, 86), chest=-14, neck=(4, 20, 38), head=(0, -20, -30),
                 right_arm=(78, 0, 14), right_forearm=-50,
                 right_leg=(76, 0, 6), right_shin=-100, right_foot=40))
 SIDE["right_leg"] = SIDE["left_leg"] = (76, -30, -10)     # both legs the same way: parallel, one on the other
@@ -816,6 +1119,9 @@ def wake_frames(sleep, end):
             go(0.4, BEND); go(0.5, STAND, REST_LIFT)   # rears up through the forward bend
     return densify(frames)
 
+# Lying on its side, the arms are folded in front and the hands just rest (no planting on the ground).
+RELAXED_HANDS = {"lie_down_standing": "relaxed", "sleep_standing": "relaxed", "wake_standing_to_standing": "relaxed"}
+
 def keyframe(channel, t, v, interpolation="catmullrom"):
     # Blockbench stores animation rotations in Bedrock's convention: X and Y turn the opposite way to the
     # editor's group rotations (Z is the same), so flip them here.
@@ -824,9 +1130,10 @@ def keyframe(channel, t, v, interpolation="catmullrom"):
     return {"channel": channel, "data_points": [{"x": round(v[0], 3), "y": round(v[1], 3), "z": round(v[2], 3)}],
             "uuid": str(uuid.uuid4()), "time": round(t, 4), "color": -1, "interpolation": interpolation}
 
-def animation(name, loop, length, frames, interpolation="catmullrom"):
+def animation(name, loop, length, frames, interpolation="catmullrom", hands="auto"):
     """frames: list of (time, pose, lift) or (time, pose, lift, back). Keyframes are offsets from the standing
     rest pose; back moves the whole body backwards (+Z), for climbing over a ledge."""
+    frames = hand_pass(frames, hands)
     anim = {}
     # every bone gets a key on every frame (a bone missing from a pose is at rest), otherwise Blockbench
     # would hold that bone's nearest key instead
@@ -942,7 +1249,7 @@ def build():
                                            animation("flee_standing", "loop", 0.42, flee_standing),
                                            animation("leap_standing", "hold", 0.95, leap_standing),
                                            animation("climb_over_ledge_to_stand", "hold", 1.6, ledge_to_stand)]
-                          + [animation(n, l, ln, fr) for n, l, ln, fr in sleep_set]}
+                          + [animation(n, l, ln, fr, hands=RELAXED_HANDS.get(n, "auto")) for n, l, ln, fr in sleep_set]}
 
 if __name__ == "__main__":
     model = build()
