@@ -703,6 +703,119 @@ def ledge_to_stand_frames():
     return frames + [(0.95, rise, -lowest(rise), 0.0), (1.2, straighten, -lowest(straighten), 0.0),
                      (1.45, STAND, REST_LIFT, 0.0), (1.6, STAND, REST_LIFT, 0.0)]   # settle upright and hold
 
+# ---------------------------------------------------------------- sleep set
+# Lying like a dog, asleep: belly on the ground, upper arms back along the ribs with the forearms flat
+# forward, neck stretched straight out flat with the head rolled onto its side on the ground just in front
+# of the hands,
+# hind legs close together out flat behind (the femur already runs up and back from the hip, so it only has
+# to drop, with the shin folded under it and the hock pointing back).
+LIE4 = mirror(P(hips=-90, neck=0, head=(0, 90, 0),
+                right_arm=(12, 0, -5), right_forearm=168, right_hand=0,
+                right_leg=(-5, 0, -1), right_shin=175, right_foot=-170))
+# Sitting on its haunches (standing version): rear on the ground, knees drawn up high, torso upright,
+# forearms resting forward over the knees.
+SIT = mirror(P(hips=-6, chest=-12, neck=10, head=6,
+               right_arm=(22, 0, -14), right_forearm=62, right_hand=10,
+               right_leg=(150, 0, -8), right_shin=-145, right_foot=90))
+# Lying on its side like a person, curled a little: the hips roll it over (pivoting at the rear, so the fall
+# from sitting tips over sideways instead of swinging), arms folded in front, the head tilted down to rest on
+# its cheek, knees drawn up with the legs stacked together. The right side ends up underneath; its arm turns
+# in (+Z) so it lies under the body instead of propping it up, and the mirrored left one drapes over the top.
+SIDE = mirror(P(hips=(-24, 0, 86), chest=-14, neck=(0, 20, 40), head=(0, -20, -30),
+                right_arm=(78, 0, 14), right_forearm=-50,
+                right_leg=(76, 0, 6), right_shin=-100, right_foot=40))
+SIDE["right_leg"] = SIDE["left_leg"] = (76, -30, -10)     # both legs the same way: parallel, one on the other
+
+# In-betweens (joint blends between these poses would swing the legs straight down through the floor):
+# the dog's rear sinking onto its folded hind legs while the arms walk forward,
+SINK4 = mirror(P(hips=-60, neck=45, head=30, right_arm=(128, 0, -10), right_forearm=0, right_hand=-38,
+                 right_leg=(-35, 0, -16), right_shin=175, right_foot=-170))
+# leaning forward out of the sit onto its hands (thighs keep their angle from the sit),
+LEAN = mirror(P(hips=-50, neck=45, head=16, right_arm=(114, 0, -10), right_forearm=0, right_hand=-40,
+                right_leg=(194, 0, -8), right_shin=-145, right_foot=90))
+# on hands and knees, shins flat behind, on the way from the sit up to all fours,
+KNEEL4 = mirror(P(hips=-70, neck=48, head=20, right_arm=(45, 0, -4), right_forearm=0, right_hand=0,
+                  right_leg=(60, 0, -6), right_shin=-80, right_foot=0))
+# and halfway through tipping over from the sit, the arm underneath reaching out to catch it.
+TIP = dict(SIT); TIP["hips"] = (-12, 0, 40)
+
+def _turned(pose, yaw):
+    pose = dict(pose); pose["root"] = (0, yaw, 0)
+    return pose
+
+def densify(frames, steps=4):
+    """Adds in-between keys (joint blends, smoothed) with the height recomputed at each one, so the
+    interpolation between far-apart poses can't sink the body into the ground or leave it floating."""
+    out = [frames[0]]
+    for (t0, a, _), (t1, b, l1) in zip(frames, frames[1:]):
+        for i in range(1, steps):
+            p = blend(a, b, smooth(i / steps))
+            out.append((t0 + (t1 - t0) * i / steps, p, -lowest(p)))
+        out.append((t1, b, l1))
+    return out
+
+def lie_down_on_fours_frames():
+    """Like a dog: walks a full tight circle on the spot (turning on the walk cycle), then folds the hind legs
+    and settles onto its belly with the chin over the forearms. The turn ends at a full 360 so it doesn't
+    unwind as it lies down."""
+    frames = []
+    for i in range(17):
+        u = i / 16
+        pose, _ = walk_frame((u * 2.0) % 1.0)
+        pose = _turned(pose, -360 * u)
+        frames.append((2.4 * u, pose, -lowest(pose)))
+    hind_down = _turned(SINK4, -360)                  # the rear sinks first, then the chest goes down
+    settle = [(2.4, frames[-1][1], frames[-1][2])]
+    for t, p in ((3.0, hind_down), (3.6, _turned(LIE4, -360))):
+        settle.append((t, p, -lowest(p)))
+    return frames[:-1] + densify(settle)
+
+def lie_down_standing_frames():
+    """Lowers itself into a sit, stays there a moment, then tips over onto its side."""
+    crouch = blend(STAND, SIT, 0.5); crouch = dict(crouch); crouch["hips"] = (-30, 0, 0)
+    slump = _editable(SIT); _add(slump, "chest", -6); _add(slump, "head", -10); slump = _frozen(slump)
+    tip = TIP
+    return densify([(0.0, STAND, REST_LIFT), (0.5, crouch, -lowest(crouch)), (1.0, SIT, -lowest(SIT)),
+                    (1.6, slump, -lowest(slump)), (2.0, tip, -lowest(tip)), (2.4, SIDE, -lowest(SIDE))])
+
+def sleep_frame(base, t):
+    """Slow, deep sleeping breaths."""
+    b = math.sin(2 * math.pi * t)
+    pose = _editable(base)
+    _add(pose, "torso", 1.5 * b); _add(pose, "chest", 2.5 * b); _add(pose, "head", -1.0 * b)
+    pose = _frozen(pose)
+    return pose, -lowest(pose)
+
+def sleep_on_fours_frame(t, rise=1.0):
+    """Sleeping like a dog: only the chest rises and falls with each slow breath. The chest bone moves up
+    (a position key; with the body lying flat its local +Z points up) and the neck and arms move back down by
+    the same amount, so the head and hands stay where they lie and the rest of the body doesn't move."""
+    b = (1 - math.cos(2 * math.pi * t)) / 2                 # 0 = breathed out, 1 = breathed in
+    pose = dict(LIE4)
+    pose["pos:chest"] = (0, 0, rise * b)
+    for bone in ("neck", "right_arm", "left_arm"):
+        pose["pos:" + bone] = (0, 0, -rise * b)
+    return pose, -lowest(LIE4)
+
+def wake_frames(sleep, end):
+    """Waking: from either sleeping pose into either stance (the game picks the stance at random)."""
+    frames = [(0.0, sleep, -lowest(sleep))]
+    def go(dt, p, lift=None):
+        frames.append((frames[-1][0] + dt, p, -lowest(p) if lift is None else lift))
+    rise = blend(SIT, BEND, 0.5); rise = dict(rise); rise["hips"] = (-40, 0, 0)
+    if sleep is SIDE:
+        go(0.7, SIT)                                   # rolls up off its side into a sit
+        if end is STAND:
+            go(0.5, rise); go(0.5, STAND, REST_LIFT)   # leans forward and pushes up onto its feet
+        else:
+            # leans forward onto its hands, drops onto its knees, then lifts its hips into all fours
+            go(0.5, LEAN); go(0.5, KNEEL4); go(0.5, REST4)
+    else:
+        go(1.0, REST4)                                 # pushes up off its belly
+        if end is STAND:
+            go(0.4, BEND); go(0.5, STAND, REST_LIFT)   # rears up through the forward bend
+    return densify(frames)
+
 def keyframe(channel, t, v, interpolation="catmullrom"):
     # Blockbench stores animation rotations in Bedrock's convention: X and Y turn the opposite way to the
     # editor's group rotations (Z is the same), so flip them here.
@@ -715,12 +828,19 @@ def animation(name, loop, length, frames, interpolation="catmullrom"):
     """frames: list of (time, pose, lift) or (time, pose, lift, back). Keyframes are offsets from the standing
     rest pose; back moves the whole body backwards (+Z), for climbing over a ledge."""
     anim = {}
+    # every bone gets a key on every frame (a bone missing from a pose is at rest), otherwise Blockbench
+    # would hold that bone's nearest key instead
+    keys = set(STAND).union(*(f[1] for f in frames))
+    bones = {k for k in keys if not k.startswith("pos:")}
+    moved = {k for k in keys if k.startswith("pos:")}   # "pos:<bone>": a position offset for that bone
     for frame in frames:
         t, pose, lift = frame[:3]; back = frame[3] if len(frame) > 3 else 0.0
-        for b in set(pose) | set(STAND):
+        for b in bones:
             p, r = pose.get(b, (0, 0, 0)), STAND.get(b, (0, 0, 0))
             anim.setdefault(b, []).append(keyframe("rotation", t, (p[0] - r[0], p[1] - r[1], p[2] - r[2]), interpolation))
         anim.setdefault("root", []).append(keyframe("position", t, (0, lift - REST_LIFT, back), interpolation))
+        for k in moved:
+            anim.setdefault(k[4:], []).append(keyframe("position", t, pose.get(k, (0, 0, 0)), interpolation))
     return {"uuid": str(uuid.uuid4()), "name": name, "loop": loop, "override": False, "length": length,
             "snapping": 20, "selected": False, "anim_time_update": "", "blend_weight": "", "start_delay": "",
             "loop_delay": "", "animators": {GUUID[b]: {"name": b, "type": "bone", "keyframes": kf} for b, kf in anim.items()}}
@@ -785,6 +905,14 @@ def build():
     leap = leap_frames()
     swim = cycle(swim_frame, 1.0, 8)
     run_standing = cycle(lambda t: run_standing_frame(t), 0.5, 32)
+    sleep_set = [("lie_down_on_fours", "hold", 3.6, lie_down_on_fours_frames()),
+                 ("lie_down_standing", "hold", 2.4, lie_down_standing_frames()),
+                 ("sleep_on_fours", "loop", 6.0, cycle(lambda t: sleep_on_fours_frame(t), 6.0, 8)),
+                 ("sleep_standing", "loop", 4.0, cycle(lambda t: sleep_frame(SIDE, t), 4.0, 8))]
+    for sleep_name, sleep_pose in (("on_fours", LIE4), ("standing", SIDE)):
+        for end_name, end_pose in (("on_fours", REST4), ("standing", STAND)):
+            fr = wake_frames(sleep_pose, end_pose)
+            sleep_set.append((f"wake_{sleep_name}_to_{end_name}", "hold", fr[-1][0], fr))
     flee_standing = cycle(lambda t: run_standing_frame(t, frantic=True), 0.42, 10)
     leap_standing = leap_standing_frames()
     ledge_to_stand = ledge_to_stand_frames()
@@ -813,7 +941,8 @@ def build():
                                            animation("run_standing", "loop", 0.5, run_standing),
                                            animation("flee_standing", "loop", 0.42, flee_standing),
                                            animation("leap_standing", "hold", 0.95, leap_standing),
-                                           animation("climb_over_ledge_to_stand", "hold", 1.6, ledge_to_stand)]}
+                                           animation("climb_over_ledge_to_stand", "hold", 1.6, ledge_to_stand)]
+                          + [animation(n, l, ln, fr) for n, l, ln, fr in sleep_set]}
 
 if __name__ == "__main__":
     model = build()

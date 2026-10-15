@@ -179,6 +179,14 @@ Made in Blockbench on the rig in `art/skinwalker_blockout.bbmodel`. Head-trackin
 - [x] Running while standing: upright sprint on its dog legs (`run_standing`)
 - [x] Panicked flee while standing: the standing sprint made frantic (`flee_standing`)
 - [x] Swimming / wading (water and tar pits) (`swim`)
+- [x] Lying down to sleep, on all fours: like a dog, turns a full circle (in the animation it turns on the spot; the game code moves it around the circle), then the rear sinks and it settles onto its belly, laying its head down on its side in front of its hands, hind legs close together out flat behind (`lie_down_on_fours`, 3.6 s)
+- [x] Lying down to sleep, standing: lowers itself into a sit (knees up, forearms over the knees), stays a moment, then tips over onto its side like a person, an arm reaching out to catch it (`lie_down_standing`, 2.4 s)
+- [x] Sleeping on all fours: the dog pose with its neck stretched out and its head lying on its side on the ground in front of its hands; only the chest rises and falls, very slowly (`sleep_on_fours`, 6 s loop)
+- [x] Sleeping after lying down standing: on its side, head resting on its cheek, knees drawn up with the legs stacked together, slow deep breaths (`sleep_standing`, 4 s loop)
+- [x] Waking from the dog pose onto all fours: pushes up off its belly (`wake_on_fours_to_on_fours`)
+- [x] Waking from the dog pose to standing: pushes up onto all fours, then rears up through the forward bend (`wake_on_fours_to_standing`)
+- [x] Waking from its side onto all fours: rolls up into a sit, leans onto its hands, drops to hands and knees, lifts its hips (`wake_standing_to_on_fours`)
+- [x] Waking from its side to standing: rolls up into a sit, leans forward and pushes up onto its feet (`wake_standing_to_standing`)
 
 **Movement**
 
@@ -187,9 +195,10 @@ Every movement has a standing and an on-all-fours version. Climbing (up, down) a
 All movement animations are done.
 
 **Idle and state**
-- [ ] Lying down to sleep
-- [ ] Sleeping
-- [ ] Waking up
+
+It sleeps in the stance it was in when it chose to sleep. When it wakes, the game picks the stance it ends up in at random (not based on how it slept), so there's a wake-up for each sleeping pose into each stance. The dog-style circling before lying down is movement done in game code (the AI walks it around a small circle while the walk animation plays, so the hitbox follows it), not baked into the animation.
+
+All idle and state animations are done.
 
 **Combat and reactions**
 - [ ] Scream
