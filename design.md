@@ -200,16 +200,22 @@ It sleeps in the stance it was in when it chose to sleep. When it wakes, the gam
 
 All idle and state animations are done.
 
-**Combat and reactions**
-- [ ] Scream
-- [ ] Enraged wind-up: the 1.5-second freeze before the Toy Gun charge (leaning toward the player, tensed)
-- [ ] Punch (attack while standing)
-- [ ] Slap or bite (attack while crawling)
-- [ ] Hurt flinch (so its tanky 25%-damage hits still read as hits)
-- [ ] Death, standing: the basic death when a player kills it with a sword, bow or any other normal attack
-- [ ] Death, on all fours: the basic death, crawling version
-- [ ] Dust Ball death, standing: when the killing blow is a Dust Ball (Toy Gun), it shakes violently, then dies
-- [ ] Dust Ball death, on all fours: the shaking death, crawling version
+**Combat and reactions** (made, waiting for your check)
+
+In Blockbench the animations are sorted into folders: Idle, Movement, Sleep, Combat, Reactions, Death. Fingers clench into fists for the punch and spread into claws for the scream, wind-up and slap.
+- [ ] Scream, standing: draws a breath, then leans in with the face forward and slightly up, the jaw dropping wide open (it slides down and forward like a real jaw, clear of the neck), arms flung out with the claws spread, trembling with the scream; then settles (`scream_standing`, 2.1 s)
+- [ ] Scream, on all fours: the head thrust forward with the face level and the jaw wide open, claws spread, trembling (`scream_on_fours`, 2.1 s)
+- [ ] Enraged wind-up, standing: the 1.5-second freeze before the Toy Gun charge: the arms go up overhead, then sweep down into claws reaching toward the target as it screams, dropping into a tense crouch, shaking harder as it builds; then the scream ends, the jaw closes and it settles into the first frame of `run_standing`, ready to chase (`enraged_windup_standing`, 2 s: the 1.5 s freeze plus 0.5 s settling into the run)
+- [ ] Enraged wind-up, on all fours: head forward and level, jaw wide open, hind legs gathered under it ready to spring, shaking harder as it builds; then settles into the first frame of `run_on_fours` (`enraged_windup_on_fours`, 2 s)
+- [ ] Punch (attack while standing): the right fist clenches and cocks back by the chin as the hips and shoulders turn away, then the body pivots through and the arm drives straight out; the left arm swings back as follow-through; the feet stay planted (`punch`, 0.85 s)
+- [ ] Slap (attack while crawling): the right arm comes up high with the elbow bent, the hand up by the head, then slaps down and across at chest height (`slap_on_fours`, 0.6 s)
+- [ ] Bite (attack while crawling): gathers, leaps forward with the head level and the jaw wide open, snaps it shut as it lands, settles back (`bite_on_fours`, 0.6 s). Slap and bite are both made so the game can pick between them
+- [ ] Hurt flinch, standing: the whole body recoils, knocked back a step with the knees dipping, chest and head thrown back, arms jerking up; recovers (`hurt_standing`, 0.45 s)
+- [ ] Hurt flinch, on all fours: shoved back, the body twisting and the front legs buckling, the head jerked aside (`hurt_on_fours`, 0.45 s)
+- [ ] Death, standing (sword, bow or any other normal attack): reels back, the knees buckle, falls forward onto its face (`death_standing`, 2 s)
+- [ ] Death, on all fours: the hind legs give out, the chest goes down, it rolls onto its side (`death_on_fours`, 1.8 s)
+- [ ] Dust Ball death, standing: shakes violently the whole time while it slowly collapses (a hunched crouch, then its knees, then onto its side), keeps shaking on the ground for about a second and a half, then goes still (`dust_death_standing`, 5.6 s)
+- [ ] Dust Ball death, on all fours: shaking the whole time, the hind legs give out, it sinks onto its belly and rolls onto its side, shakes on the ground for about a second and a half, then goes still (`dust_death_on_fours`, 5.5 s)
 
 Which death plays depends on what killed it (Dust Ball or anything else) and which stance it was in.
 

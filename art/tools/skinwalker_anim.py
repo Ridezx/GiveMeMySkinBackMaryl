@@ -3,7 +3,7 @@ Writes art/skinwalker_blockout.bbmodel (rig + animations) and preview images.
 Coordinates are Blockbench pixels: feet at y=0, the face toward -Z. Rotations are Blockbench group
 rotations in degrees [x, y, z], Euler order ZYX (X applied first), same sign as Blockbench's editor.
 """
-import itertools, json, math, os, sys, uuid
+import base64, itertools, json, math, os, sys, uuid
 from PIL import Image, ImageDraw
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else "."
@@ -261,7 +261,8 @@ def world(p, bone, pose, lift=0.0):
     while bone:
         r = pose.get(bone, (0, 0, 0)); pv = PIVOT[bone]
         d = rot_zyx((p[0] - pv[0], p[1] - pv[1], p[2] - pv[2]), r)
-        p = (pv[0] + d[0], pv[1] + d[1], pv[2] + d[2]); bone = PARENT[bone]
+        o = pose.get("pos:" + bone, (0, 0, 0))                 # position keys move a bone within its parent
+        p = (pv[0] + d[0] + o[0], pv[1] + d[1] + o[1], pv[2] + d[2] + o[2]); bone = PARENT[bone]
     return (p[0], p[1] + lift, p[2])
 
 def corners(c):
@@ -302,6 +303,15 @@ def euler_zyx(m, near=(0, 0, 0)):
     """Blockbench angles (x, y, z) for a rotation matrix, each taken within 180 of `near` so keyframes
     don't spin the long way round between frames."""
     b = math.degrees(math.asin(max(-1.0, min(1.0, -m[2][0]))))
+    if math.cos(math.radians(b)) < 0.035:
+        # gimbal lock: only a - c (or a + c) is fixed, so keep x where it was and solve z from it
+        a = near[0]
+        if b > 0:
+            c = a - math.degrees(math.atan2(m[0][1], m[0][2]))
+        else:
+            c = math.degrees(math.atan2(-m[0][1], -m[0][2])) - a
+        c = c + 360 * round((near[2] - c) / 360)
+        return (a, b, c)
     a = math.degrees(math.atan2(m[2][1], m[2][2])); c = math.degrees(math.atan2(m[1][0], m[0][0]))
     best = None
     for sol in ((a, b, c), (a + 180, 180 - b, c + 180)):        # the two angle sets for the same rotation
@@ -356,11 +366,14 @@ def pose_hand(pose, side, lift, mode, near=None):
     behaviours blend into each other so nothing snaps."""
     base = pose.get(f"{side}_hand", (0, 0, 0))
     keys = [f"{side}_hand"] + [f"{side}_{f}{t}" for f in FINGER_BONES for t in ("", "_tip")]
-    relaxed = {f"{side}_hand": (base[0] - 8, base[1], base[2])}; set_fingers(relaxed, side, 20, 25)
+    roll = abs(mvec(world_rot("chest", pose), (1, 0, 0))[1])            # 1: lying on its side
+    flex = 8 if mode == "relaxed" else 8 * (1 - smooth(max(0.0, min(1.0, (roll - 0.55) / 0.25))))   # limp on its side
+    relaxed = {f"{side}_hand": (base[0] - flex, base[1], base[2])}; set_fingers(relaxed, side, 20, 25)
+    if f"fingers:{side}" in pose:                    # this frame asks for a fist, claws...
+        fc, ft, fth = pose[f"fingers:{side}"]; set_fingers(relaxed, side, fc, ft, (fth, fth))
     grip = {f"{side}_hand": base}; set_fingers(grip, side, 70, 80, (35, 30))
     up = mvec(world_rot(f"{side}_forearm", pose), (0, -1, 0))[1]           # > 0: forearm pointing up
     w_grip = smooth(max(0.0, min(1.0, (up - 0.1) / 0.4)))
-    roll = abs(mvec(world_rot("chest", pose), (1, 0, 0))[1])            # 1: lying on its side
     w_rest = 1.0 if mode == "relaxed" else smooth(max(0.0, min(1.0, (roll - 0.55) / 0.25)))
     if w_grip < 1 and w_rest < 1:
         ground = ground_hand(pose, side, lift, near, relaxed)
@@ -400,7 +413,9 @@ for _side in ("right", "left"):
 
 HAND_KEYS = [f"{sd}_{b}" for sd in ("right", "left") for b in ["hand"] + [f + t for f in FINGER_BONES for t in ("", "_tip")]]
 
-def hand_pass(frames, mode="auto"):
+def hand_pass(frames, mode="auto", max_rate=None, fingers_only=False):
+    if mode == "keep":
+        return frames
     """Pose the hands and fingers in every frame of an animation (see pose_hand). Where a hand would turn more
     than 15 degrees between two keyframes, in-between keys are added so the hand is posed properly along the
     way instead of the interpolation swinging it through the ground."""
@@ -419,6 +434,8 @@ def hand_pass(frames, mode="auto"):
             pose_hand(p, side, lift, mode, prev and prev[1][f"{side}_hand"])
         if grounded and mode == "relaxed":
             lift = -lowest(p)
+        elif grounded:
+            lift = max(lift, -lowest(p))             # a resting (not planted) hand never ends up in the ground
         return (t, p, lift) + tuple(fr[3:])
     def turn(a_, b_):
         return max(abs(a_[1][k][j] - b_[1][k][j]) for k in HAND_KEYS for j in range(3))
@@ -437,6 +454,19 @@ def hand_pass(frames, mode="auto"):
     out = [posed(frames[0], None)]
     for ra, rb in zip(frames, frames[1:]):
         out += refine(ra, rb, out[-1], posed(rb, out[-1]), 5)
+    if max_rate:
+        # limit how fast a hand can turn (degrees per second), so a shaking arm crossing in and out of reach
+        # of the ground flails instead of snapping between planted and lifted
+        for i in range(1, len(out)):
+            dt = out[i][0] - out[i - 1][0]
+            lim = max_rate * dt
+            p = dict(out[i][1])
+            for k in HAND_KEYS:
+                if fingers_only and k.endswith("_hand"):
+                    continue
+                prev, cur = out[i - 1][1][k], p[k]
+                p[k] = tuple(pv + max(-lim, min(lim, cv - pv)) for pv, cv in zip(prev, cur))
+            out[i] = (out[i][0], p) + tuple(out[i][2:])
     return out
 
 def stand_on_fours(pose, chest_abs, arm_tilt=0.0):
@@ -1119,8 +1149,332 @@ def wake_frames(sleep, end):
             go(0.4, BEND); go(0.5, STAND, REST_LIFT)   # rears up through the forward bend
     return densify(frames)
 
+# ---------------------------------------------------------------- combat, reactions, deaths
+import random
+
+def edit(base, **kw):
+    """A copy of a pose with changes (right_* entries are mirrored to the left like in P)."""
+    p = dict(base); p.update(mirror(P(**kw)))
+    return p
+
+FIST, CLAW = (90, 100, 50), (-12, 45, 5)          # finger poses: knuckle curl, tip curl, thumb
+RELAXED_FINGERS = (20, 25, 10)
+
+def with_hands(pose, right=None, left=None):
+    p = dict(pose)
+    if right: p["fingers:right"] = right
+    if left: p["fingers:left"] = left
+    return p
+
+TREMOR_BONES = {"head": 1.0, "neck": 0.8, "jaw": 0.6, "chest": 0.5, "torso": 0.4,
+                "right_arm": 0.6, "left_arm": 0.6, "right_forearm": 0.7, "left_forearm": 0.7}
+SHAKE_BONES = dict(TREMOR_BONES, hips=0.5, right_leg=0.5, left_leg=0.5, right_shin=0.6, left_shin=0.6,
+                   right_foot=0.4, left_foot=0.4)
+
+def keyed(keys, step=0.05, shake=None, seed=1, hands_first=False):
+    """Frames every `step` seconds from key poses [(time, pose) or (time, pose, {"back": px, "up": px}), ...],
+    easing between keys, with the body seated on the ground at every frame (raised by "up", moved backwards
+    by "back", forwards if negative). shake(t) -> (amplitude in degrees, bones) adds a random tremor."""
+    moves = [k[2] if len(k) > 2 else {} for k in keys]
+    keys = [(k[0], k[1]) for k in keys]
+    rnd = random.Random(seed)
+    for side in ("right", "left"):                  # a key without a finger pose has relaxed fingers
+        if any(f"fingers:{side}" in k[1] for k in keys):
+            keys = [(t, dict(p, **{f"fingers:{side}": p.get(f"fingers:{side}", RELAXED_FINGERS)})) for t, p in keys]
+    frames = []
+    n = int(round(keys[-1][0] / step))
+    for i in range(n + 1):
+        t = i * step
+        j = max(k for k in range(len(keys)) if keys[k][0] <= t + 1e-9)
+        if j == len(keys) - 1:
+            pose = dict(keys[j][1]); mv = dict(moves[j])
+        else:
+            (t0, a), (t1, b) = keys[j], keys[j + 1]
+            u = smooth((t - t0) / (t1 - t0))
+            pose = blend(a, b, u)
+            mv = {k: moves[j].get(k, 0) + (moves[j + 1].get(k, 0) - moves[j].get(k, 0)) * u for k in ("back", "up")}
+        if shake:
+            amp, bones = shake(t)
+            if amp > 0:
+                pose = _editable(pose)
+                for bone, w in bones.items():
+                    _add(pose, bone, rnd.uniform(-1, 1) * amp * w, rnd.uniform(-1, 1) * amp * w * 0.5,
+                         rnd.uniform(-1, 1) * amp * w * 0.6)
+                pose = _frozen(pose)
+        frames.append((round(t, 4), pose, -lowest(pose) + mv.get("up", 0), mv.get("back", 0)))
+    if hands_first:
+        # pose the hands on the smooth, unshaken motion, then put the shake on top, so a trembling arm
+        # doesn't flick its hand between planted and lifted
+        calm = hand_pass(keyed(keys, step), "auto")
+        by_time = {round(f[0], 4): f for f in calm}
+        for i, (t, pose, lift, back) in enumerate(frames):
+            src = by_time[t][1]
+            p = dict(pose); p.update({k: src[k] for k in HAND_KEYS})
+            frames[i] = (t, p, -lowest(p), back)
+    return frames
+
+def ramp(t, t0, t1):
+    return smooth(max(0.0, min(1.0, (t - t0) / (t1 - t0)))) if t1 > t0 else float(t >= t0)
+
+# --- the jaw and the head
+JAW_PARTS = ("chin", "chin_point", "jaw_body", "jaw_ramus", "lower_front_teeth", "lower_side_teeth", "lower_molars")
+NECK_PARTS = [c for c in CUBES if c[1] == "neck"]
+
+def _box_overlap(pose, c_in, c_box, n=3):
+    """How many sample points of cube c_in lie inside cube c_box, both posed."""
+    a, b = c_box[2], c_box[3]; o = world(a, c_box[1], pose); axes = []
+    for i in range(3):
+        q = list(a); q[i] = b[i]; w = world(tuple(q), c_box[1], pose)
+        d = [w[j] - o[j] for j in range(3)]; L = math.sqrt(sum(x * x for x in d)) or 1e-9
+        axes.append(([x / L for x in d], L))
+    hits = 0
+    for k in itertools.product(range(n), repeat=3):
+        pt = world(tuple(c_in[2][i] + (c_in[3][i] - c_in[2][i]) * (k[i] + 0.5) / n for i in range(3)), c_in[1], pose)
+        if all(0 < sum((pt[j] - o[j]) * ax[j] for j in range(3)) < L for ax, L in axes):
+            hits += 1
+    return hits
+
+def open_jaw(pose, degrees):
+    """Open the mouth by about `degrees`. A jaw hinged in front of the ear swings its chin back into the
+    throat if it only rotates, so like a real jaw it also drops and slides forward: the smallest shift that
+    keeps the chin, teeth and jaw sides clear of the neck. If no small shift is enough (the head turned or
+    lying on the ground), the mouth opens a little less."""
+    parts = [c for c in CUBES if c[1] == "jaw" and any(k in c[0] for k in JAW_PARTS)]
+    deg = degrees
+    while True:
+        p = dict(pose); p["jaw"] = (-deg, 0, 0)
+        best = None
+        for dz in (0, -0.5, -1, -1.5, -2):
+            for dy in (0, -0.5, -1, -1.5):
+                p["pos:jaw"] = (0, dy, dz)
+                if sum(_box_overlap(p, c, nk) for c in parts for nk in NECK_PARTS) == 0:
+                    if best is None or abs(dz) + abs(dy) < best[0]:
+                        best = (abs(dz) + abs(dy), (0, dy, dz))
+        if best or deg <= 0:
+            p["pos:jaw"] = best[1] if best else (0, 0, 0)
+            return p
+        deg = max(0, deg - 3)
+
+def aim_head(pose, pitch):
+    """Turn the head (about its X) so the face points `pitch` degrees above level."""
+    def face_pitch(hx):
+        q = dict(pose); h = q.get("head", (0, 0, 0)); q["head"] = (hx, h[1], h[2])
+        f = mvec(world_rot("head", q), (0, 0, -1))
+        return math.degrees(math.asin(max(-1.0, min(1.0, f[1]))))
+    lo, hi = -120.0, 120.0
+    for _ in range(40):                  # looking further up as the head tips back (+X)
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if face_pitch(mid) < pitch else (lo, mid)
+    p = dict(pose); h = p.get("head", (0, 0, 0)); p["head"] = ((lo + hi) / 2, h[1], h[2])
+    return p
+
+def face(pose, pitch, jaw=0):
+    """Aim the head and open the jaw."""
+    p = aim_head(pose, pitch)
+    return open_jaw(p, jaw) if jaw else p
+
+def hind_gathered(pose, base=None):
+    base = base or REST4
+    p = dict(pose)
+    for side in ("right", "left"):
+        l, sh = base[f"{side}_leg"], base[f"{side}_shin"]
+        p[f"{side}_leg"] = (l[0] + 12, l[1], l[2]); p[f"{side}_shin"] = (sh[0] - 14, sh[1], sh[2])
+    return p
+
+def arm_add(pose, side, dx=0.0, dy=0.0, dz=0.0, forearm=None):
+    p = dict(pose); a = pose[f"{side}_arm"]
+    p[f"{side}_arm"] = (a[0] + dx, a[1] + dy, a[2] + dz)
+    if forearm is not None:
+        p[f"{side}_forearm"] = (forearm, 0, 0)
+    return p
+
+# --- scream: draws breath, then leans in with the face forward, jaw wide open, arms flung out with the
+# claws spread (elbows bent forward), trembling with the scream
+INHALE = face(edit(STAND, chest=-2, neck=-4, right_arm=(14, 0, -10)), 18, 6)
+SCREAM = with_hands(face(edit(STAND, hips=-6, chest=-22, neck=22, right_arm=(30, 0, -28), right_forearm=35,
+                              right_leg=36, right_shin=-74, right_foot=44), 12, 38), CLAW, CLAW)
+INHALE4 = face(edit(REST4, neck=55), 22, 6)
+SCREAM4 = with_hands(face(edit(REST4, neck=38), 12, 40), CLAW, CLAW)
+
+def scream_frames(base, inhale, scream):
+    return keyed([(0.0, base), (0.3, inhale), (0.5, scream), (1.7, scream), (2.1, base)],
+                 shake=lambda t: (3.0 * ramp(t, 0.45, 0.6) * (1 - ramp(t, 1.6, 1.8)), TREMOR_BONES), seed=3)
+
+# --- enraged wind-up (1.5 s before the charge). Standing: the arms go up overhead, then sweep down into
+# claws reaching toward the target as it screams, dropping into a tense crouch, shaking harder as it builds.
+# On all fours: head forward and level, jaw open, hind legs gathered under it ready to spring.
+ARMS_UP = with_hands(face(edit(STAND, chest=-4, neck=-2, right_arm=(165, 0, -14), right_forearm=15), 22, 8), CLAW, CLAW)
+WINDUP = with_hands(face(edit(STAND, hips=-25, chest=-25, neck=40, right_arm=(62, 0, -24), right_forearm=32,
+                              right_leg=55, right_shin=-100, right_foot=55), 4, 36), CLAW, CLAW)
+WINDUP4 = with_hands(face(hind_gathered(edit(REST4, neck=32)), 4, 38), CLAW, CLAW)
+
+RECOVER = 0.5   # after the 1.5 s wind-up: the scream ends and it settles into the first frame of its run
+
+def _run_start(frame):
+    """A run's first frame as a key: its pose, raised to the height the run starts at."""
+    pose, lift = frame
+    return (pose, {"up": lift + lowest(pose)})
+
+def windup_frames():
+    run, up = _run_start(run_standing_frame(0.0))
+    return keyed([(0.0, STAND), (0.35, ARMS_UP), (0.6, WINDUP), (1.5, WINDUP), (1.5 + RECOVER, run, up)],
+                 shake=lambda t: ((1.5 + 3.5 * ramp(t, 0.6, 1.5)) * ramp(t, 0.5, 0.65) * (1 - ramp(t, 1.5, 1.75)), TREMOR_BONES),
+                 seed=5)
+
+def windup4_frames():
+    run, up = _run_start(run_frame(0.0))
+    return keyed([(0.0, REST4), (0.25, WINDUP4), (1.5, WINDUP4), (1.5 + RECOVER, run, up)],
+                 shake=lambda t: ((1.5 + 3.5 * ramp(t, 0.2, 1.5)) * ramp(t, 0.15, 0.3) * (1 - ramp(t, 1.5, 1.75)), TREMOR_BONES),
+                 seed=5)
+
+# --- punch (standing): the right fist clenches and cocks back by the chin as the hips and shoulders turn
+# away, then the body pivots through and the arm drives straight out; the left arm swings back as follow-
+# through. The legs turn against the hips so the feet stay planted.
+def _punch_poses():
+    cock = with_hands(edit(STAND, chest=(-12, 18, 0), neck=4, head=(5, -14, 0)), FIST, None)
+    cock.update({"hips": (0, 10, 0), "right_arm": (-25, 0, -10), "right_forearm": (115, 0, 0),
+                 "left_arm": (25, 0, 8), "left_forearm": (60, 0, 0),
+                 "right_leg": (28, -10, -3), "left_leg": (28, -10, 3)})
+    strike = with_hands(edit(STAND, chest=(-20, -26, 0), neck=12, head=(0, 22, 0), right_shin=-70), FIST, None)
+    strike.update({"hips": (-6, -14, 0), "right_arm": (82, 0, -4), "right_forearm": (8, 0, 0),
+                   "left_arm": (-28, 0, 10), "left_forearm": (30, 0, 0),
+                   "right_leg": (34, 14, -3), "left_leg": (34, 14, 3)})
+    follow = dict(strike); follow.update({"left_arm": (-36, 0, 12), "left_forearm": (20, 0, 0), "right_forearm": (20, 0, 0)})
+    return cock, strike, follow
+COCK, STRIKE, FOLLOW = _punch_poses()
+
+def punch_frames():
+    return keyed([(0.0, STAND), (0.25, COCK), (0.37, STRIKE), (0.5, FOLLOW), (0.85, STAND)], step=0.025)
+
+# --- slap (on all fours): the right arm comes up high with the elbow bent, the hand up by the head, then
+# slaps down and across at chest height (not down at the ground) and goes back to the ground
+def _slap_poses():
+    raise_ = with_hands(arm_add(REST4, "right", 100, 0, -25, forearm=75), CLAW, None)
+    raise_.update({"chest": (0, 10, 0)})
+    swipe = with_hands(arm_add(REST4, "right", 70, 0, 25, forearm=25), CLAW, None)
+    swipe.update({"chest": (0, -12, 0)})
+    return raise_, swipe
+SLAP_RAISE, SLAP_SWIPE = _slap_poses()
+
+def slap_frames():
+    return keyed([(0.0, REST4), (0.22, SLAP_RAISE), (0.34, SLAP_SWIPE), (0.6, REST4)], step=0.025)
+
+# --- bite (on all fours): gathers, leaps forward with the head level and the jaw wide open, snaps it shut as
+# it lands, then settles back
+def _bite_poses():
+    gather = face(hind_gathered(edit(REST4, neck=44)), 2, 8)
+    lunge = arm_add(arm_add(edit(REST4, neck=34), "right", 25, forearm=10), "left", 25, forearm=10)
+    for side in ("right", "left"):
+        l, sh = REST4[f"{side}_leg"], REST4[f"{side}_shin"]
+        lunge[f"{side}_leg"] = (l[0] - 15, l[1], l[2]); lunge[f"{side}_shin"] = (sh[0] + 10, sh[1], sh[2])
+    lunge = face(lunge, 0, 44)
+    snap = face(edit(REST4, neck=36), 0)
+    return gather, lunge, snap
+BITE_GATHER, BITE_LUNGE, BITE_SNAP = _bite_poses()
+
+def bite_frames():
+    return keyed([(0.0, REST4), (0.12, BITE_GATHER, {"back": 1}), (0.26, BITE_LUNGE, {"back": -7, "up": 2.5}),
+                  (0.34, BITE_SNAP, {"back": -8}), (0.6, REST4)], step=0.025)
+
+# --- hurt: the whole body recoils. Standing: knocked back a step, knees dipping, chest and head thrown back,
+# arms jerking up. On all fours: shoved back, the body twisting and the front legs buckling, head jerked aside.
+FLINCH = face(edit(STAND, chest=(8, 10, 0), neck=-14, right_arm=(25, 0, -18), right_forearm=55,
+                   right_leg=42, right_shin=-86), 30, 15)
+FLINCH4 = arm_add(arm_add(edit(REST4, chest=(0, 12, 0), neck=36), "right", -10, forearm=25), "left", -10, forearm=25)
+FLINCH4["hips"] = (FLINCH4["hips"][0], 0, 6)
+FLINCH4["head"] = (0, 25, -12)
+FLINCH4 = face(FLINCH4, 5, 15)
+
+def hurt_frames(base, flinch):
+    return keyed([(0.0, base), (0.08, flinch, {"back": 2.5}), (0.2, blend(flinch, base, 0.4), {"back": 2.0}),
+                  (0.45, base)], step=0.025)
+
+# --- deaths. End poses: face down (standing death), on its side (on all fours)
+# Face down, everything slumped onto the ground (fitted limb by limb so each part rests on it): head turned
+# on its side, arms limp at its sides, legs and feet flat behind it, toes lying along the ground.
+DEAD_FRONT = mirror(P(hips=(-90, 0, 0), chest=0, neck=16, head=(0, 80, 0), jaw=-12,
+                      right_arm=(-10, 0, -50), right_forearm=30, right_hand=(-10, 0, -60),
+                      right_leg=(4, 0, -12), right_shin=-3, right_foot=-20,
+                      **{f"right_toe{i}": 20 for i in range(1, 6)}, **{f"right_toe{i}_tip": 20 for i in range(1, 6)}))
+DEAD_SIDE = edit(LIE4, hips=(-82, 0, 70), jaw=-15, right_forearm=155)   # the belly-down pose rolled onto its side
+# ...then everything slumped onto the ground (fitted limb by limb): the head down, the top arm and leg flopped
+# forward onto the ground in front of the body, the bottom leg curled
+DEAD_SIDE.update({"neck": (-12, 0, 32), "left_arm": (75, 0, -75), "left_forearm": (20, 0, 0), "left_hand": (0, 0, -30),
+                  "left_leg": (0, 0, -30), "left_shin": (300, 0, 0), "left_foot": (-15, 0, 0),
+                  "right_leg": (135, 0, 0), "right_shin": (210, 0, 0), "right_foot": (-15, 0, 0)})
+# (shins as 300 / 210 rather than -60 / -150: the same angles, but close to where they start lying down, so
+# rolling over doesn't swing them the long way round through the ground)
+DEAD_SIDE = with_hands(DEAD_SIDE, (0, 4, 0), (0, 4, 0))          # fingers lying flat
+STAGGER = edit(STAND, chest=0, neck=-10, head=-20, jaw=-20, right_arm=(20, 0, -18), right_forearm=20)
+KNEEL = edit(STAND, hips=-15, chest=-25, neck=25, head=20, jaw=-10, right_arm=(5, 0, -5), right_forearm=10,
+             right_leg=15, right_shin=-95, right_foot=10)
+DEAD_FRONT = with_hands(DEAD_FRONT, (0, 4, 0), (0, 4, 0))          # fingers lying flat, not curled under
+DEAD_FRONT_BOUNCE = edit(DEAD_FRONT, neck=12, chest=-3)
+SLUMP4 = edit(SINK4, neck=20, head=0, jaw=-10)
+CHEST_DOWN4 = edit(LIE4, jaw=-15)
+
+def _jaws(*names):
+    for n in names:
+        p = globals()[n]; deg = -p["jaw"][0]
+        globals()[n] = open_jaw(p, deg)
+_jaws("DEAD_FRONT", "DEAD_SIDE", "STAGGER", "KNEEL", "DEAD_FRONT_BOUNCE", "SLUMP4", "CHEST_DOWN4")
+
+def death_frames():
+    """Normal death (sword, bow...): reels back, the knees buckle, falls forward onto its face."""
+    return keyed([(0.0, STAND), (0.25, STAGGER), (0.7, KNEEL), (1.2, blend(KNEEL, DEAD_FRONT, 0.55)),
+                  (1.35, DEAD_FRONT), (1.5, DEAD_FRONT_BOUNCE), (1.7, DEAD_FRONT), (2.0, DEAD_FRONT)])
+
+def death4_frames():
+    """Normal death on all fours: the hind legs give out, the chest goes down, it slumps onto its side."""
+    return keyed([(0.0, REST4), (0.3, SLUMP4), (0.8, CHEST_DOWN4), (1.2, DEAD_SIDE),
+                  (1.35, edit(DEAD_SIDE, neck=14)), (1.5, DEAD_SIDE), (1.8, DEAD_SIDE)])
+
+# Dust Ball death: shakes violently the whole time while slowly collapsing to the ground, keeps shaking on
+# the ground for a second and a half or so, then goes still.
+SHAKE_CROUCH = with_hands(edit(STAND, hips=-20, chest=-30, neck=20, head=10, jaw=-25, right_arm=(20, 0, -20),
+                               right_forearm=110, right_leg=60, right_shin=-110, right_foot=55), CLAW, CLAW)
+DEAD_SIDE_STAND = mirror(P(hips=(-24, 0, 86), chest=-14, neck=(4, 20, 38), head=(0, -20, -30), jaw=-20,
+                           right_arm=(60, 0, 14), right_forearm=30, right_leg=(50, 0, 6), right_shin=-70, right_foot=40))
+# everything slumped onto the ground: the top arm and leg flopped forward in front of the body
+DEAD_SIDE_STAND.update({"neck": (12, 20, 40), "left_arm": (75, 0, -75), "left_forearm": (0, 0, 0), "left_hand": (-20, 0, -90),
+                        "left_leg": (120, 0, 45), "left_shin": (-75, 0, 0), "left_foot": (60, 0, 0),
+                        "right_leg": (90, 0, -15), "right_shin": (0, 0, 0), "right_foot": (15, 0, 0)})
+DEAD_SIDE_STAND = with_hands(DEAD_SIDE_STAND, (0, 4, 0), (0, 4, 0))
+_jaws("SHAKE_CROUCH", "DEAD_SIDE_STAND")
+
+def dust_death_frames():
+    keys = [(0.0, STAND), (0.4, STAND), (1.5, SHAKE_CROUCH), (2.6, KNEEL), (3.4, DEAD_SIDE_STAND), (5.6, DEAD_SIDE_STAND)]
+    return keyed(keys, shake=lambda t: (9.0 * ramp(t, 0.0, 0.3) * (1 - ramp(t, 5.0, 5.4)), SHAKE_BONES), seed=7,
+                 hands_first=True)
+
+def dust_death4_frames():
+    keys = [(0.0, REST4), (0.4, REST4), (1.6, SLUMP4), (2.6, CHEST_DOWN4), (3.2, DEAD_SIDE), (5.5, DEAD_SIDE)]
+    return keyed(keys, shake=lambda t: (9.0 * ramp(t, 0.0, 0.3) * (1 - ramp(t, 4.9, 5.3)), SHAKE_BONES), seed=9,
+                 hands_first=True)
+
+# Hands already posed (keyed(..., hands_first=True)) are kept as they are.
+HAND_RATE = {}
+
+# Folders in Blockbench's animation list.
+GROUP_OF = {}
+for _g, _names in (("Idle", ("rest_on_fours", "rest_standing", "alert", "alert_on_fours", "look_around", "look_around_on_fours")),
+                   ("Movement", ("walk_on_fours", "walk_standing", "run_on_fours", "flee_on_fours", "run_standing",
+                                 "flee_standing", "stand_to_crawl", "crawl_to_stand", "climb_up", "climb_down",
+                                 "climb_over_ledge", "climb_over_ledge_to_stand", "leap", "leap_standing", "swim")),
+                   ("Sleep", ("lie_down_on_fours", "lie_down_standing", "sleep_on_fours", "sleep_standing",
+                              "wake_on_fours_to_on_fours", "wake_on_fours_to_standing", "wake_standing_to_on_fours",
+                              "wake_standing_to_standing")),
+                   ("Combat", ("scream_standing", "scream_on_fours", "enraged_windup_standing", "enraged_windup_on_fours",
+                               "punch", "slap_on_fours", "bite_on_fours")),
+                   ("Reactions", ("hurt_standing", "hurt_on_fours")),
+                   ("Death", ("death_standing", "death_on_fours", "dust_death_standing", "dust_death_on_fours"))):
+    for _n in _names:
+        GROUP_OF[_n] = _g
+
 # Lying on its side, the arms are folded in front and the hands just rest (no planting on the ground).
 RELAXED_HANDS = {"lie_down_standing": "relaxed", "sleep_standing": "relaxed", "wake_standing_to_standing": "relaxed"}
+RELAXED_HANDS.update({"dust_death_standing": "keep", "dust_death_on_fours": "keep"})   # posed before the shake
+RELAXED_HANDS["death_standing"] = "keep"         # the hands just follow the poses: limp, ending flat on the ground
 
 def keyframe(channel, t, v, interpolation="catmullrom"):
     # Blockbench stores animation rotations in Bedrock's convention: X and Y turn the opposite way to the
@@ -1130,15 +1484,15 @@ def keyframe(channel, t, v, interpolation="catmullrom"):
     return {"channel": channel, "data_points": [{"x": round(v[0], 3), "y": round(v[1], 3), "z": round(v[2], 3)}],
             "uuid": str(uuid.uuid4()), "time": round(t, 4), "color": -1, "interpolation": interpolation}
 
-def animation(name, loop, length, frames, interpolation="catmullrom", hands="auto"):
+def animation(name, loop, length, frames, interpolation="catmullrom", hands="auto", group=""):
     """frames: list of (time, pose, lift) or (time, pose, lift, back). Keyframes are offsets from the standing
     rest pose; back moves the whole body backwards (+Z), for climbing over a ledge."""
-    frames = hand_pass(frames, hands)
+    frames = hand_pass(frames, hands, *HAND_RATE.get(name, (None, False)))
     anim = {}
     # every bone gets a key on every frame (a bone missing from a pose is at rest), otherwise Blockbench
     # would hold that bone's nearest key instead
     keys = set(STAND).union(*(f[1] for f in frames))
-    bones = {k for k in keys if not k.startswith("pos:")}
+    bones = {k for k in keys if ":" not in k}
     moved = {k for k in keys if k.startswith("pos:")}   # "pos:<bone>": a position offset for that bone
     for frame in frames:
         t, pose, lift = frame[:3]; back = frame[3] if len(frame) > 3 else 0.0
@@ -1148,7 +1502,7 @@ def animation(name, loop, length, frames, interpolation="catmullrom", hands="aut
         anim.setdefault("root", []).append(keyframe("position", t, (0, lift - REST_LIFT, back), interpolation))
         for k in moved:
             anim.setdefault(k[4:], []).append(keyframe("position", t, pose.get(k, (0, 0, 0)), interpolation))
-    return {"uuid": str(uuid.uuid4()), "name": name, "loop": loop, "override": False, "length": length,
+    return {"uuid": str(uuid.uuid4()), "name": name, "group_name": group or GROUP_OF.get(name, ""), "loop": loop, "override": False, "length": length,
             "snapping": 20, "selected": False, "anim_time_update": "", "blend_weight": "", "start_delay": "",
             "loop_delay": "", "animators": {GUUID[b]: {"name": b, "type": "bone", "keyframes": kf} for b, kf in anim.items()}}
 
@@ -1164,9 +1518,25 @@ for i in order:
     UV[i] = (ux, uy); ux += fw; shelf = max(shelf, fh)
 assert uy + shelf <= 128, "UV overflow"
 
+# The texture (painted by art/tools/skinwalker_texture.py, or by hand). The model links to the file rather
+# than owning it, so regenerating the model never overwrites painting done on it.
+TEXTURE = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "main",
+                                        "resources", "assets", "horrormod", "textures", "entity", "skinwalker.png"))
+
+def textures(out_dir):
+    if not os.path.exists(TEXTURE):
+        return []
+    img = Image.open(TEXTURE)
+    return [{"path": TEXTURE, "name": "skinwalker.png", "folder": "entity", "namespace": "horrormod", "id": "0",
+             "width": img.width, "height": img.height, "uv_width": 128, "uv_height": 128, "particle": False,
+             "render_mode": "default", "render_sides": "auto", "visible": True, "internal": False, "saved": True,
+             "uuid": str(uuid.uuid5(uuid.NAMESPACE_URL, TEXTURE)),
+             "relative_path": os.path.relpath(TEXTURE, os.path.abspath(out_dir)),
+             "source": "data:image/png;base64," + base64.b64encode(open(TEXTURE, "rb").read()).decode()}]
+
 def faces(i):
     w, h, d = size(CUBES[i]); u, v = UV[i]
-    f = lambda a: {"uv": a, "texture": False}
+    f = lambda a: {"uv": a, "texture": 0 if os.path.exists(TEXTURE) else False}
     return {"north": f([u+d, v+d, u+d+w, v+d+h]), "east": f([u, v+d, u+d, v+d+h]),
             "south": f([u+2*d+w, v+d, u+2*d+2*w, v+d+h]), "west": f([u+d+w, v+d, u+2*d+w, v+d+h]),
             "up": f([u+d+w, v+d, u+d, v]), "down": f([u+d+2*w, v, u+d+w, v+d])}
@@ -1221,6 +1591,19 @@ def build():
             fr = wake_frames(sleep_pose, end_pose)
             sleep_set.append((f"wake_{sleep_name}_to_{end_name}", "hold", fr[-1][0], fr))
     flee_standing = cycle(lambda t: run_standing_frame(t, frantic=True), 0.42, 10)
+    combat_set = [("scream_standing", "hold", scream_frames(STAND, INHALE, SCREAM)),
+                  ("scream_on_fours", "hold", scream_frames(REST4, INHALE4, SCREAM4)),
+                  ("enraged_windup_standing", "hold", windup_frames()),
+                  ("enraged_windup_on_fours", "hold", windup4_frames()),
+                  ("punch", "hold", punch_frames()),
+                  ("slap_on_fours", "hold", slap_frames()),
+                  ("bite_on_fours", "hold", bite_frames()),
+                  ("hurt_standing", "hold", hurt_frames(STAND, FLINCH)),
+                  ("hurt_on_fours", "hold", hurt_frames(REST4, FLINCH4)),
+                  ("death_standing", "hold", death_frames()),
+                  ("death_on_fours", "hold", death4_frames()),
+                  ("dust_death_standing", "hold", dust_death_frames()),
+                  ("dust_death_on_fours", "hold", dust_death4_frames())]
     leap_standing = leap_standing_frames()
     ledge_to_stand = ledge_to_stand_frames()
     return {"meta": {"format_version": "4.10", "model_format": "modded_entity", "box_uv": True},
@@ -1228,7 +1611,7 @@ def build():
             "modded_entity_version": "1.17", "modded_entity_flip_y": True, "visible_box": [1, 1, 0],
             "variable_placeholders": "", "variable_placeholder_buttons": [], "timeline_setups": [], "unhandled_root_fields": {},
             "resolution": {"width": 128, "height": 128}, "elements": elements, "outliner": [group("root")],
-            "textures": [], "animations": [animation("rest_on_fours", "loop", 3.0, rest4),
+            "textures": textures(OUT), "animations": [animation("rest_on_fours", "loop", 3.0, rest4),
                                            animation("walk_on_fours", "loop", LEN, walk),
                                            animation("rest_standing", "loop", 3.0, rest_standing),
                                            animation("walk_standing", "loop", 1.2, walk_standing),
@@ -1249,7 +1632,8 @@ def build():
                                            animation("flee_standing", "loop", 0.42, flee_standing),
                                            animation("leap_standing", "hold", 0.95, leap_standing),
                                            animation("climb_over_ledge_to_stand", "hold", 1.6, ledge_to_stand)]
-                          + [animation(n, l, ln, fr, hands=RELAXED_HANDS.get(n, "auto")) for n, l, ln, fr in sleep_set]}
+                          + [animation(n, l, ln, fr, hands=RELAXED_HANDS.get(n, "auto")) for n, l, ln, fr in sleep_set]
+                          + [animation(n, l, fr[-1][0], fr, hands=RELAXED_HANDS.get(n, "auto")) for n, l, fr in combat_set]}
 
 if __name__ == "__main__":
     model = build()
