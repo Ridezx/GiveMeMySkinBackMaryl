@@ -43,7 +43,7 @@ Java (`src/main/java/net/ridez/horror/`):
 - `loot/`: global loot modifiers (`AddItemModifier`, registered in `ModLootModifiers`).
 - `mixin/`: mixins, listed in `src/main/resources/horrormod.mixins.json` (loaded via `build.gradle` and the `--mixin.config` arg in `.vscode/launch.json`).
 - `entity/ModEntities.java`: entity registry (projectiles, traders) and their attributes; `entity/ModTrades.java`: each trader's trades; `entity/custom/`: entity classes. Renderers go in `client/` (`ModEntityRenderers`).
-- `fluid/`: fluids (`ModFluids`, `TarFluidType`). The liquid block is in `ModBlocks`, the bucket in `ModItems`.
+- `fluid/`: fluids (`ModFluids`; `TarFluidType`/`TarFluid`, `NutrinonFluidType`/`FlowingNutrinonFluid`). The liquid block is in `ModBlocks`, the bucket in `ModItems`.
 - `worldgen/`: custom world generation features (`TarPitFeature`, registered in `ModFeatures`). Data-driven worldgen is in `data/horrormod/worldgen/` and added to biomes by `data/horrormod/forge/biome_modifier/`.
 - `recipe/`: custom recipe types (`ToolDamagingShapelessRecipe` for recipes that use up Scalpel durability).
 - `item/custom/ModCrossbowItem.java`: base for crossbow-style weapons (Straw, Toy Gun); load time applied via `mixin/CrossbowItemMixin`.

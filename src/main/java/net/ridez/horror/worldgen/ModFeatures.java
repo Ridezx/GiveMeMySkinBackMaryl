@@ -14,6 +14,8 @@ public class ModFeatures {
 
     public static final RegistryObject<Feature<NoneFeatureConfiguration>> tar_pit =
             FEATURES.register("tar_pit", () -> new TarPitFeature(NoneFeatureConfiguration.CODEC));
+    public static final RegistryObject<Feature<NoneFeatureConfiguration>> aspiraton_veins =
+            FEATURES.register("aspiraton_veins", () -> new AspiratonVeinFeature(NoneFeatureConfiguration.CODEC));
 
     public static void register(IEventBus eventBus) {
         FEATURES.register(eventBus);

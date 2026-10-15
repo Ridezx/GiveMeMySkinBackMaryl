@@ -27,6 +27,7 @@ public class ModCreativeModeTabs {
                         output.accept(ModBlocks.speedy_car.get());
                         output.accept(ModItems.holy_text.get());
                         output.accept(ModItems.her_favorite_dress.get());
+                        output.accept(ModItems.skinwalker_spawn_egg.get());
                         output.accept(ModItems.gustav_spawn_egg.get());
                         output.accept(ModItems.walter_spawn_egg.get());
                         output.accept(ModItems.frank_spawn_egg.get());
@@ -40,6 +41,7 @@ public class ModCreativeModeTabs {
                         output.accept(ModBlocks.avolition.get());
                         output.accept(ModBlocks.dustbricks.get());
                         output.accept(ModBlocks.aspiraton_block.get());
+                        output.accept(ModBlocks.mytoma.get());
                     }).build());
 
     public static final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_tools_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_tools_tab",
@@ -49,6 +51,7 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.chisel.get());
                         output.accept(ModItems.scalpel.get());
                         output.accept(ModItems.tar_bucket.get());
+                        output.accept(ModItems.nutrinon_bucket.get());
                     }).build());
 
 

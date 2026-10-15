@@ -65,8 +65,12 @@ public class ModItems {
             () -> new GrapeHugsItem(new Item.Properties().food(ModFoodProperties.grape_hugs)));
     public static final RegistryObject<Item> tar_bucket = ITEMS.register("tar_bucket",
             () -> new BucketItem(ModFluids.tar, new Item.Properties().craftRemainder(Items.BUCKET).stacksTo(1)));
+    public static final RegistryObject<Item> nutrinon_bucket = ITEMS.register("nutrinon_bucket",
+            () -> new BucketItem(ModFluids.nutrinon, new Item.Properties().craftRemainder(Items.BUCKET).stacksTo(1)));
     public static final RegistryObject<Item> her_favorite_dress = ITEMS.register("her_favorite_dress",
             () -> new Item(new Item.Properties()));
+    public static final RegistryObject<Item> skinwalker_spawn_egg = ITEMS.register("skinwalker_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.skinwalker, 0xC9A48C, 0x5A1E1E, new Item.Properties()));
     public static final RegistryObject<Item> gustav_spawn_egg = ITEMS.register("gustav_spawn_egg",
             () -> new ForgeSpawnEggItem(ModEntities.gustav, 0x2B2B2B, 0xC9A9A6, new Item.Properties()));
     public static final RegistryObject<Item> walter_spawn_egg = ITEMS.register("walter_spawn_egg",

@@ -46,14 +46,23 @@ public class ModBlocks {
             ()-> new Block(BlockBehaviour.Properties.of()
                     .strength(3f).requiresCorrectToolForDrops().sound(SoundType.NETHERITE_BLOCK)));
 
+    // Hardened Nutrinon: forms where Nutrinon touches water (see HorrorMod.commonSetup).
+    public static final RegistryObject<Block> mytoma = registerBlock("mytoma",
+            ()-> new Block(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_RED)
+                    .strength(6f, 12f).requiresCorrectToolForDrops().sound(SoundType.DEEPSLATE)));
+
     public static final RegistryObject<Block> speedy_car = registerBlock("speedy_car",
             () -> new SpeedyCarBlock(BlockBehaviour.Properties.of().strength(0.5f).sound(SoundType.WOOL)
                     .noOcclusion().pushReaction(PushReaction.DESTROY)));
 
-    // Liquid blocks get no BlockItem; the Tar Bucket places Tar.
+    // Liquid blocks get no BlockItem; their buckets place them.
     public static final RegistryObject<LiquidBlock> tar = BLOCKS.register("tar",
             () -> new LiquidBlock(ModFluids.tar, BlockBehaviour.Properties.ofFullCopy(Blocks.LAVA)
                     .lightLevel(state -> 0).mapColor(MapColor.COLOR_BLACK)));
+
+    public static final RegistryObject<LiquidBlock> nutrinon = BLOCKS.register("nutrinon",
+            () -> new LiquidBlock(ModFluids.nutrinon, BlockBehaviour.Properties.ofFullCopy(Blocks.WATER)
+                    .mapColor(MapColor.COLOR_RED)));
 
     public static final RegistryObject<Block> Magic_Block = registerBlock("magic_block",
             () -> new MagicBlock(BlockBehaviour.Properties.of().strength(8f).requiresCorrectToolForDrops()));

@@ -116,8 +116,10 @@ Test items `placeholderfood` and `placeholderfuel` exist only for testing.
 |---|---|---|
 | Veinseep / Deepslate Veinseep | Drops like glowstone: 2–4 Aspiraton Drop, Fortune adds more but caps at 4, Silk Touch drops the block. Surrounds the blood veins (see World generation) | Done; generates like diamond ore |
 | Aspiraton Block | Crafted from 9 Aspiraton (3×3). Drops 2–4 Aspiraton; Fortune I 3–6, Fortune II 5–8, Fortune III always 9; Silk Touch drops the block | Done |
+| Mytoma | Very dark red hardened Nutrinon. Forms wherever Nutrinon touches water (like lava + water making obsidian). Hardness 6 (between deepslate and obsidian), needs a stone pickaxe or better, drops itself | Done; placeholder texture |
 | Dust Bricks | Building block; 2×2 Dust Ball; 1 → 4 Dust Ball | Done |
 | Avolition | Pure black block for void-like rooms and cutscene spaces. Not meant to be mined (very high strength); drops itself if someone does | Done |
+| Nutrinon | A bright red **liquid**, the blood in the veins. Flows like water and can be swum in (and drowned in), but swimming is slower than water and faster than lava. Two sources never make a new one, so it can't be farmed endlessly. Flowing Nutrinon sheds dark red droplets; still Nutrinon has no particles. Picked up and placed with a Nutrinon Bucket | Done; placeholder look (tinted water textures) |
 | Tar | A **liquid** that behaves exactly like lava (flow, spread, movement, fog, bucket) but gives no light and never burns or damages. Picked up and placed with a Tar Bucket | Done; placeholder look (tinted water textures). Found in tar pits (see World generation) and some structures; tar pits not built yet |
 | Magic Block | Quest turn-in spot (see Magic Block quests) | Exists; quest system not started |
 | Speedy Car | Placeable display block (see Items) | Done; placeholder model |
@@ -138,7 +140,7 @@ The current code turns dropped Pelt into Graft on the Magic Block. Treat this as
 
 | Mob | Concept | Behavior | Drops | Status |
 |---|---|---|---|---|
-| Skinwalker | Steals skin to see if yours will "fit better" / "feel better". A large creature | 100 health and very tanky against normal attacks, so players should run, not fight. When the player damages it, it screams, then either flees or fights | 1–3 Pelt | Not started |
+| Skinwalker | Based on **The Rake**: a dog that stole a human's skin and is still learning to be human. A gaunt human head and skin on a dog's frame: deep narrow chest, tucked waist, long thin arms that double as front legs, and **dog hind legs** (knee forward, hock back, up on its toes) even when standing upright. 4.5 blocks tall standing. The stolen skin hangs loose (a hood over the back of the head, a drape down its back). That skin doesn't work for it, so it wants to take yours and see if it fits. **On all fours** (from the user's annotated photo): arms straight down under the shoulders; torso and chest rising in one line from the hip to the neck, head on top; the femur running from the hip (the low point of a 'V') up and back to the knee; the long tibia dropping straight down from the knee. About 2.5 blocks tall in game. When moving on all fours its limbs spread out for balance. It fits 3-block-high spaces but still not 2-block doorways. Later: switching to all fours in confined spaces needs the animations plus a smaller hitbox | 70% hunt players on sight; the rest ignore them until hurt. 100 health; normal attacks do only 25% damage, so players should run. Hits for 13 (6.5 hearts). Chases at ~6.4 blocks/s: faster than a sprinting player on flat ground, just under a sprint-jumping one. When scared (hit by a player and rolls "flee", or 3 Salt hits) it runs at hyperspeed (~26 blocks/s) away from that player for 15 seconds. When a player hurts it: screams, then flees or fights (50/50). 3 Salt hits: screams and flees. 2nd Dust Ball hit: dies instantly. A first Dust Ball hit has a 10% chance to enrage it instead of the flee/fight roll: it freezes in place staring at the shooter and screams for 1.5 seconds (it can still be shot meanwhile), then charges them at ~16 blocks/s for 5 seconds. Too tall for doorways. Spawns rarely in the dark anywhere in the overworld, always alone | 1–3 Pelt (+Looting) | Done; placeholder look (scaled enderman, no texture) and placeholder enderman sounds. **Open:** exact spawn rules (biomes, rarity) |
 | Hollow | Someone who chose the wrong skin too many times | Takes damage but no knockback; does not react to damage at all | 1–3 Rotted Pelt | Not started |
 | Odie | The Grim Reaper, personification of death | Never attacks; only watches | **Open** | Not started |
 | Sandman | Police | Appears when the player carries too much Dust. If he catches you, you're sent to the Torture dimension. Cares only about your past dealings, not your current state | **Open** | Later |
@@ -150,6 +152,47 @@ Current mob focus: **Skinwalker, Hollow, Odie.**
 
 - **Dust Ball (Toy Gun):** the second Dust Ball hit on a Skinwalker kills it instantly, on top of the normal damage.
 - **Salt shot:** a Skinwalker hit 3 times screams and runs away.
+
+### Skinwalker animations
+
+Made in Blockbench on the rig in `art/skinwalker_blockout.bbmodel`. Head-tracking (looking at the player) and matching the walk/run cycle speed to its movement speed are done in code, not keyframed.
+
+**Done**
+- [x] Resting on all fours (`rest_on_fours`)
+- [x] Walking on all fours (`walk_on_fours`)
+
+**Movement**
+- [ ] Walking while standing
+- [ ] Resting while standing
+- [ ] Running on all fours (chasing, and the enraged charge)
+- [ ] Panicked flee: lower, scrambling run used when it flees (3 Salt hits, or scared off)
+- [ ] Standing → crawling
+- [ ] Crawling → standing
+- [ ] Climbing up pillars (so players can't escape by building up)
+- [ ] Climbing down / dropping from the top
+- [ ] Climbing over the top onto a ledge
+- [ ] Jumping / leaping (gaps, and lunging at the player)
+- [ ] Swimming / wading (water and tar pits)
+
+**Idle and state**
+- [ ] Subtle breathing bob layered on resting on all fours (nothing stands perfectly still)
+- [ ] Alert: perks up and holds perfectly still
+- [ ] Lying down to sleep
+- [ ] Sleeping
+- [ ] Waking up
+
+**Combat and reactions**
+- [ ] Scream
+- [ ] Enraged wind-up: the 1.5-second freeze before the Toy Gun charge (leaning toward the player, tensed)
+- [ ] Punch (attack while standing)
+- [ ] Slap or bite (attack while crawling)
+- [ ] Hurt flinch (so its tanky 25%-damage hits still read as hits)
+- [ ] Death (e.g. collapsing, or the stolen skin sliding off the dog-shaped body)
+
+**Character**
+- [ ] Sniffing: head low, tracking a scent (still a dog underneath)
+- [ ] Head tilt: the curious dog tilt, unsettling on a human face
+- [ ] Adjusting the stolen skin: tugging or resettling skin that doesn't fit
 
 ## Traders
 
@@ -169,7 +212,7 @@ Status: done, using the vanilla villager model as a placeholder with each trader
 
 ## World generation
 
-- **Blood veins (Aspiraton):** the world is a layer of skin and Aspiraton is its blood veins. Generate long, continuous lines of Aspiraton blocks underground with Veinseep around them, switching to Deepslate Veinseep at deepslate depth. Veins should feel endless.
+- **Blood veins (Aspiraton):** done. The world is a layer of skin and Aspiraton is its blood veins: endless, winding, round tubes running mostly sideways between y -56 and 48 (tapering off at the top and bottom of that band). From the middle out: a channel about 6–7 blocks across, wide enough to swim through, holding **Nutrinon** (all still source blocks) whose level rises and falls along the vein: some stretches brim-full, others half-full, others a shallow stream with air above (about 40% Nutrinon overall); a ~1-block wall of Aspiraton Block, and a ragged outer layer of Veinseep (Deepslate Veinseep in deepslate), 0–2.5 blocks thick with bare gaps, like pieces flaking off. Spacing is tuned so a spectator sees roughly 3–7 veins at a time (simulated over several seeds). Veins cut through natural rock and ores, and are also built straight through caves, water and lava, so they stay sealed and never spill: in a cave you see a bare Aspiraton tube (the Veinseep flakes only form in rock). Structures are left alone. Code: `worldgen/AspiratonVeinFeature.java`; spacing, layer sizes and depth are constants at the top.
 - **Tar pits:** done. Vanilla's surface lava pools, filled with Tar and lined with mud, in biomes tagged `#forge:is_swamp` (swamp, mangrove swamp, and modded swamps that use the tag; never jungles). About 1 attempt per 40 chunks of swamp; many attempts fail in swamps because pools won't generate touching water. The rim is decorated for an eerie feel: bare coarse dirt, dead bushes, bone blocks (some half-buried), the odd cobweb, a skeleton skull on about half of pits, and 1–2 leafless dark oak trees. Still Tar gives off drifting ash and wisps of smoke. Tar also appears in some generated structures (later). **Later:** ambient sound near the pits (you'll make the sounds).
 - **Veinseep patches:** done, an exact copy of diamond ore generation (same sizes, counts and depths) using Veinseep / Deepslate Veinseep, in every overworld biome.
 - **Open:** biomes (planned, not decided).
@@ -216,7 +259,7 @@ Done: `assets/minecraft/texts/splashes.txt` **replaces** the vanilla list, and `
 ## Priorities
 
 1. **Items:** the Straw (Salt) and Toy Gun (Dust Ball) are done; the rest of the item list. Then the villagers Walter, Gustav and Frank.
-2. **World generation:** Veinseep patches and tar pits done; Aspiraton blood veins next.
+2. **World generation:** Veinseep patches, tar pits and Aspiraton blood veins done. Biomes still to decide.
 3. **Mobs:** Skinwalker, Hollow, Odie.
 4. Later: structures, biomes, the Sandman and Angel, dimensions, cutscenes, the set-path variant.
 

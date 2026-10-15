@@ -24,6 +24,12 @@ public class ModFluids {
     public static final RegistryObject<FlowingFluid> flowing_tar = FLUIDS.register("flowing_tar",
             () -> new ForgeFlowingFluid.Flowing(tarProperties()));
 
+    public static final RegistryObject<FluidType> nutrinon_type = FLUID_TYPES.register("nutrinon", NutrinonFluidType::new);
+    public static final RegistryObject<FlowingFluid> nutrinon = FLUIDS.register("nutrinon",
+            () -> new ForgeFlowingFluid.Source(nutrinonProperties()));
+    public static final RegistryObject<FlowingFluid> flowing_nutrinon = FLUIDS.register("flowing_nutrinon",
+            () -> new FlowingNutrinonFluid(nutrinonProperties()));
+
     // Lava's overworld spread: slow ticks, short reach.
     private static ForgeFlowingFluid.Properties tarProperties() {
         return new ForgeFlowingFluid.Properties(tar_type, tar, flowing_tar)
@@ -32,6 +38,17 @@ public class ModFluids {
                 .slopeFindDistance(2)
                 .levelDecreasePerBlock(2)
                 .tickRate(30)
+                .explosionResistance(100.0F);
+    }
+
+    // Water's spread: fast ticks, 7-block reach.
+    private static ForgeFlowingFluid.Properties nutrinonProperties() {
+        return new ForgeFlowingFluid.Properties(nutrinon_type, nutrinon, flowing_nutrinon)
+                .bucket(ModItems.nutrinon_bucket)
+                .block(ModBlocks.nutrinon)
+                .slopeFindDistance(4)
+                .levelDecreasePerBlock(1)
+                .tickRate(5)
                 .explosionResistance(100.0F);
     }
 

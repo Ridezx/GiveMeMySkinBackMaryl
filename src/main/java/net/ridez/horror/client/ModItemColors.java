@@ -12,7 +12,7 @@ import net.ridez.horror.item.ModItems;
 public class ModItemColors {
     @SubscribeEvent
     public static void registerItemColors(RegisterColorHandlersEvent.Item event) {
-        // Tints the fluid drawn inside the Tar Bucket's model (forge:fluid_container) with Tar's color.
-        event.register(new DynamicFluidContainerModel.Colors(), ModItems.tar_bucket.get());
+        // Tints the fluid drawn inside each bucket's model (forge:fluid_container) with that fluid's color.
+        event.register(new DynamicFluidContainerModel.Colors(), ModItems.tar_bucket.get(), ModItems.nutrinon_bucket.get());
     }
 }

@@ -3,10 +3,12 @@ package net.ridez.horror;
 import com.mojang.logging.LogUtils;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.common.ForgeMod;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fluids.FluidInteractionRegistry;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
@@ -56,7 +58,10 @@ public class HorrorMod
 
     private void commonSetup(final FMLCommonSetupEvent event)
     {
-
+        // Nutrinon hardens into Mytoma where it touches water, like lava turning into obsidian.
+        // The registry isn't thread-safe, so register on the main thread.
+        event.enqueueWork(() -> FluidInteractionRegistry.addInteraction(ModFluids.nutrinon_type.get(),
+                new FluidInteractionRegistry.InteractionInformation(ForgeMod.WATER_TYPE.get(), ModBlocks.mytoma.get().defaultBlockState())));
     }
 
     private void addCreative(BuildCreativeModeTabContentsEvent event)
@@ -95,6 +100,7 @@ public class HorrorMod
             event.accept(ModBlocks.avolition);
             event.accept(ModBlocks.dustbricks);
             event.accept(ModBlocks.aspiraton_block);
+            event.accept(ModBlocks.mytoma);
         }
         if(event.getTabKey() == CreativeModeTabs.REDSTONE_BLOCKS)
         {
@@ -104,6 +110,7 @@ public class HorrorMod
         {
             event.accept(ModItems.scalpel);
             event.accept(ModItems.tar_bucket);
+            event.accept(ModItems.nutrinon_bucket);
 
         }
         if(event.getTabKey() == CreativeModeTabs.COMBAT)
@@ -120,6 +127,7 @@ public class HorrorMod
         }
         if(event.getTabKey() == CreativeModeTabs.SPAWN_EGGS)
         {
+            event.accept(ModItems.skinwalker_spawn_egg);
             event.accept(ModItems.gustav_spawn_egg);
             event.accept(ModItems.walter_spawn_egg);
             event.accept(ModItems.frank_spawn_egg);
