@@ -158,25 +158,35 @@ Current mob focus: **Skinwalker, Hollow, Odie.**
 Made in Blockbench on the rig in `art/skinwalker_blockout.bbmodel`. Head-tracking (looking at the player) and matching the walk/run cycle speed to its movement speed are done in code, not keyframed.
 
 **Done**
-- [x] Resting on all fours (`rest_on_fours`)
+- [x] Resting on all fours, with a slow breathing bob (`rest_on_fours`, 3 s loop)
 - [x] Walking on all fours (`walk_on_fours`)
+- [x] Walking while standing (`walk_standing`, 1.2 s loop)
+- [x] Resting while standing, with the same breathing (`rest_standing`, 3 s loop)
+- [x] Alert while standing: perks up over 0.25 s, then holds perfectly still (`alert`)
+- [x] Alert on all fours: chest and head lift, limbs stay planted (`alert_on_fours`)
+- [x] Look around after an alert, searching for the sound: starts and ends on the alert pose, snaps the head to one side and holds listening with a head tilt, snaps to the other side and holds, glances up, settles (`look_around`, 4 s loop, linear snaps)
+- [x] Look around on all fours (`look_around_on_fours`; neck and head turn, chest stays still so the arms stay planted)
+- [x] Running on all fours: a gallop (front legs reach together, hind legs drive together, back flexes and stretches, brief airborne moments), for chasing and the enraged charge (`run_on_fours`, 0.5 s loop)
+- [x] Panicked flee: the gallop made frantic. Lower and flatter, head ducked and jerking side to side as if glancing back, longer and wilder strides with the front legs landing almost together, deeper back flex, bigger airborne moments, jerky wobble (`flee_on_fours`, 0.4 s loop)
+- [x] Standing → crawling (`stand_to_crawl`)
+- [x] Crawling → standing (`crawl_to_stand`)
+- [x] Climbing up pillars (so players can't escape by building up) (`climb_up`)
+- [x] Climbing down / dropping from the top (`climb_down`)
+- [x] Climbing over the top onto a ledge, ending on all fours (`climb_over_ledge`)
+- [x] Climbing over the top onto a ledge, ending standing (`climb_over_ledge_to_stand`)
+- [x] Jumping / leaping on all fours (gaps, and lunging at the player) (`leap`)
+- [x] Jumping / leaping while standing (`leap_standing`)
+- [x] Running while standing: upright sprint on its dog legs (`run_standing`)
+- [x] Panicked flee while standing: the standing sprint made frantic (`flee_standing`)
+- [x] Swimming / wading (water and tar pits) (`swim`)
 
 **Movement**
-- [ ] Walking while standing
-- [ ] Resting while standing
-- [ ] Running on all fours (chasing, and the enraged charge)
-- [ ] Panicked flee: lower, scrambling run used when it flees (3 Salt hits, or scared off)
-- [ ] Standing → crawling
-- [ ] Crawling → standing
-- [ ] Climbing up pillars (so players can't escape by building up)
-- [ ] Climbing down / dropping from the top
-- [ ] Climbing over the top onto a ledge
-- [ ] Jumping / leaping (gaps, and lunging at the player)
-- [ ] Swimming / wading (water and tar pits)
+
+Every movement has a standing and an on-all-fours version. Climbing (up, down) and swimming are their own body positions (flat against a wall / floating), so one version serves both stances.
+
+All movement animations are done.
 
 **Idle and state**
-- [ ] Subtle breathing bob layered on resting on all fours (nothing stands perfectly still)
-- [ ] Alert: perks up and holds perfectly still
 - [ ] Lying down to sleep
 - [ ] Sleeping
 - [ ] Waking up
@@ -187,7 +197,12 @@ Made in Blockbench on the rig in `art/skinwalker_blockout.bbmodel`. Head-trackin
 - [ ] Punch (attack while standing)
 - [ ] Slap or bite (attack while crawling)
 - [ ] Hurt flinch (so its tanky 25%-damage hits still read as hits)
-- [ ] Death (e.g. collapsing, or the stolen skin sliding off the dog-shaped body)
+- [ ] Death, standing: the basic death when a player kills it with a sword, bow or any other normal attack
+- [ ] Death, on all fours: the basic death, crawling version
+- [ ] Dust Ball death, standing: when the killing blow is a Dust Ball (Toy Gun), it shakes violently, then dies
+- [ ] Dust Ball death, on all fours: the shaking death, crawling version
+
+Which death plays depends on what killed it (Dust Ball or anything else) and which stance it was in.
 
 **Character**
 - [ ] Sniffing: head low, tracking a scent (still a dog underneath)

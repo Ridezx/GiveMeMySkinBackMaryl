@@ -46,6 +46,7 @@ Java (`src/main/java/net/ridez/horror/`):
 - `fluid/`: fluids (`ModFluids`; `TarFluidType`/`TarFluid`, `NutrinonFluidType`/`FlowingNutrinonFluid`). The liquid block is in `ModBlocks`, the bucket in `ModItems`.
 - `worldgen/`: custom world generation features (`TarPitFeature`, registered in `ModFeatures`). Data-driven worldgen is in `data/horrormod/worldgen/` and added to biomes by `data/horrormod/forge/biome_modifier/`.
 - `recipe/`: custom recipe types (`ToolDamagingShapelessRecipe` for recipes that use up Scalpel durability).
+- `art/tools/skinwalker_anim.py`: generates the Skinwalker blockout rig and every animation in `art/skinwalker_blockout.bbmodel` (plus the reference sheet). Edit poses/animations there, never by hand in the file. Run: `python3 art/tools/skinwalker_anim.py art /tmp` (needs Pillow). `art/tools/check_run.py <tools dir> <bbmodel>` checks `run_standing` under Blockbench-style interpolation. Blockbench quirk: animation keyframe X/Y rotations are inverted vs editor rotations (the script handles it).
 - `item/custom/ModCrossbowItem.java`: base for crossbow-style weapons (Straw, Toy Gun); load time applied via `mixin/CrossbowItemMixin`.
 
 Resources (`src/main/resources/`):
