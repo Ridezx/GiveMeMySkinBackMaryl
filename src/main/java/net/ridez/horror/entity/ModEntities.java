@@ -1,10 +1,16 @@
 package net.ridez.horror.entity;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.SpawnPlacementTypes;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.item.trading.MerchantOffer;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
 import net.minecraftforge.event.entity.SpawnPlacementRegisterEvent;
@@ -55,10 +61,18 @@ public class ModEntities {
         event.put(frank.get(), TraderEntity.createAttributes().build());
     }
 
-    // Natural spawns follow the usual hostile-mob rules: on solid ground, in the dark.
+    // Natural spawns: only at night and only in the Overworld (its biome modifier already only adds it to
+    // Overworld biomes), on solid ground in the dark like other hostile mobs. Spawn eggs ignore these rules.
     private static void registerSpawnPlacements(SpawnPlacementRegisterEvent event) {
         event.register(skinwalker.get(), SpawnPlacementTypes.ON_GROUND, Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
-                Monster::checkMonsterSpawnRules, SpawnPlacementRegisterEvent.Operation.REPLACE);
+                ModEntities::canSkinwalkerSpawn, SpawnPlacementRegisterEvent.Operation.REPLACE);
+    }
+
+    private static boolean canSkinwalkerSpawn(EntityType<SkinwalkerEntity> pType, ServerLevelAccessor pLevel, MobSpawnType pReason,
+                                              BlockPos pPos, RandomSource pRandom) {
+        ServerLevel level = pLevel.getLevel();
+        return level.dimension() == Level.OVERWORLD && !level.isDay()
+                && Monster.checkMonsterSpawnRules(pType, pLevel, pReason, pPos, pRandom);
     }
 
     public static void register(IEventBus eventBus) {

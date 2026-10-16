@@ -1,6 +1,6 @@
 import sys, json, importlib.util
-spec = importlib.util.spec_from_file_location("g", sys.argv[1] + "/rake_gen.py"); g = importlib.util.module_from_spec(spec)
-out = sys.argv[1] + "/rake"; path = sys.argv[2]; sys.argv = ["x", out, out]; spec.loader.exec_module(g)
+spec = importlib.util.spec_from_file_location("g", sys.argv[1] + "/skinwalker_anim.py"); g = importlib.util.module_from_spec(spec)
+out = "/tmp"; path = sys.argv[2]; sys.argv = ["x", out, out]; spec.loader.exec_module(g)
 d = json.load(open(path)); groups = {}
 def walk(n):
     groups[n["uuid"]] = (n["name"], n.get("rotation", [0, 0, 0]))

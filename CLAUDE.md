@@ -13,6 +13,7 @@ A horror-themed Minecraft mod ("Give me back my skin, Maryl").
 | Java | **21** (Temurin at `/usr/lib/jvm/temurin-21-jdk`; the system Java 25 will not work) |
 | Mappings | **Parchment 2024.07.28-1.21** on top of Mojang official names |
 | Build | ForgeGradle 6, Gradle 8.7 (wrapper) |
+| Animation | **GeckoLib 4.5.8** (`geckolib-forge-1.21`, the last GeckoLib build for 1.21 on Forge; `software.bernie.geckolib.*`), a required dependency, declared in `build.gradle` and `mods.toml` |
 
 Versions live in [gradle.properties](gradle.properties). Do not change them unless asked.
 
@@ -39,15 +40,17 @@ Java (`src/main/java/net/ridez/horror/`):
 - `item/custom/`: custom item classes (e.g. `ChiselItem`, `FuelItem`).
 - `item/ModFoodProperties.java`: food definitions.
 - `item/ModCreativeModeTabs.java`: the mod's own creative tabs. Vanilla tab additions are in `HorrorMod.addCreative`.
-- `client/`: client-only code (e.g. `ModSplashes`, the title-screen splash picker).
+- `client/`: client-only code (e.g. `ModSplashes`, the title-screen splash picker; `HorrorTitleScreen`, the mod's title screen, which replaces the vanilla one through `ScreenEvent.Opening`).
+- `art/tools/title_screen_art.py`: draws the title screen art (`textures/gui/title/name.png`, the faded mod name, from `art/fonts/IMFellEnglish-Italic.ttf`, OFL licence alongside; `skinwalker.png`, the textured Skinwalker model posed peeking in from the right edge). Run: `python3 art/tools/title_screen_art.py` (needs Pillow); re-run after changing the model or its texture.
 - `loot/`: global loot modifiers (`AddItemModifier`, registered in `ModLootModifiers`).
 - `mixin/`: mixins, listed in `src/main/resources/horrormod.mixins.json` (loaded via `build.gradle` and the `--mixin.config` arg in `.vscode/launch.json`).
 - `entity/ModEntities.java`: entity registry (projectiles, traders) and their attributes; `entity/ModTrades.java`: each trader's trades; `entity/custom/`: entity classes. Renderers go in `client/` (`ModEntityRenderers`).
 - `fluid/`: fluids (`ModFluids`; `TarFluidType`/`TarFluid`, `NutrinonFluidType`/`FlowingNutrinonFluid`). The liquid block is in `ModBlocks`, the bucket in `ModItems`.
 - `worldgen/`: custom world generation features (`TarPitFeature`, registered in `ModFeatures`). Data-driven worldgen is in `data/horrormod/worldgen/` and added to biomes by `data/horrormod/forge/biome_modifier/`.
 - `recipe/`: custom recipe types (`ToolDamagingShapelessRecipe` for recipes that use up Scalpel durability).
-- `art/tools/skinwalker_anim.py`: generates the Skinwalker blockout rig and every animation in `art/skinwalker_blockout.bbmodel` (plus the reference sheet). Edit poses/animations there, never by hand in the file. Run: `python3 art/tools/skinwalker_anim.py art /tmp` (needs Pillow). `art/tools/check_run.py <tools dir> <bbmodel>` checks `run_standing` under Blockbench-style interpolation. Blockbench quirk: animation keyframe X/Y rotations are inverted vs editor rotations (the script handles it).
-- `art/tools/skinwalker_texture.py`: paints the Skinwalker texture (`textures/entity/skinwalker.png`, plus `skinwalker_eyes.png` for the glow layer) from the model's cubes. Running it overwrites any hand painting on those files; the model generator only links the PNG, so regenerating animations is safe.
+- `art/tools/skinwalker_anim.py`: generates the Skinwalker blockout rig and every animation in `art/skinwalker_blockout.bbmodel` (plus the reference sheet), and the files the game loads: `assets/horrormod/geo/entity/skinwalker.geo.json` and `animations/entity/skinwalker.animation.json` (GeckoLib format; never edit those by hand either). Edit poses/animations there, never by hand in the file. Run: `python3 art/tools/skinwalker_anim.py art /tmp` (needs Pillow). `art/tools/check_anims.py` checks every animation as Blockbench plays it (`check [names]`: ground contact and joint snaps; `preview names [view] [out.png]`: filmstrips; `rest names`: how far each body part ends above the ground). `art/tools/check_run.py <tools dir> <bbmodel>` checks `run_standing` in detail. Blockbench quirk: animation keyframe X/Y rotations are inverted vs editor rotations (the script handles it).
+- `art/tools/skinwalker_texture.py`: paints the Skinwalker texture (`textures/entity/skinwalker.png`, plus `skinwalker_glowmask.png` for the glow layer and `skinwalker_eye_glow.png`, the eyes and socket glow drawn on top as added light) from the model's cubes. Running it overwrites any hand painting on those files; the model generator only links the PNG, so regenerating animations is safe.
+- Skinwalker in game: `entity/custom/SkinwalkerEntity.java` (a GeckoLib `GeoEntity`: picks its animation in `animate`; one-off actions are started on the server through the synced `ACTION`/`ACTION_COUNT` data, not `triggerAnim`), `entity/custom/SkinwalkerHearing.java` (hears blocks placed/broken), `entity/custom/SkinwalkerCommand.java` (`/skinwalker sleep`, for testing), `entity/custom/SkinwalkerDamageSource.java` (picks its random death message), `client/SkinwalkerModel.java` and `client/SkinwalkerRenderer.java` (scale, glowing eyes, no death tilt). Its hits use the `horrormod:skinwalker` damage type (`data/horrormod/damage_type/`, in the vanilla `bypasses_armor`/`bypasses_enchantments` tags); its spawn biomes are the `horrormod:skinwalker_spawns_in` biome tag.
 - `item/custom/ModCrossbowItem.java`: base for crossbow-style weapons (Straw, Toy Gun); load time applied via `mixin/CrossbowItemMixin`.
 
 Resources (`src/main/resources/`):

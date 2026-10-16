@@ -11,6 +11,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.util.ObfuscationReflectionHelper;
 import net.ridez.horror.HorrorMod;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -29,12 +30,20 @@ public class ModSplashes {
         if (current != null) {
             return;
         }
+        String splash = pick();
+        if (splash != null) {
+            ObfuscationReflectionHelper.setPrivateValue(TitleScreen.class, titleScreen, new SplashRenderer(splash), "splash");
+        }
+    }
+
+    // A random line from splashes.txt (also used by HorrorTitleScreen), or null if there are none.
+    @Nullable
+    public static String pick() {
         List<String> splashes = ObfuscationReflectionHelper.getPrivateValue(
                 SplashManager.class, Minecraft.getInstance().getSplashManager(), "splashes");
         if (splashes == null || splashes.isEmpty()) {
-            return;
+            return null;
         }
-        String splash = splashes.get(RANDOM.nextInt(splashes.size()));
-        ObfuscationReflectionHelper.setPrivateValue(TitleScreen.class, titleScreen, new SplashRenderer(splash), "splash");
+        return splashes.get(RANDOM.nextInt(splashes.size()));
     }
 }

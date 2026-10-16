@@ -1,7 +1,8 @@
 """Paints the Skinwalker's texture straight from the model's cubes (art/tools/skinwalker_anim.py).
-Writes src/main/resources/assets/horrormod/textures/entity/skinwalker.png (the skin) and skinwalker_eyes.png
-(only the eyes, for a glow-in-the-dark layer in game). Only run this to start the texture over: it
-overwrites any painting done on those files since.
+Writes src/main/resources/assets/horrormod/textures/entity/skinwalker.png (the skin) and
+skinwalker_glowmask.png (only the eyes: GeckoLib draws it glowing in the dark), and skinwalker_eye_glow.png (the
+eyes again plus a faint glow spilling onto the socket walls around them, which the game adds on top as light, see
+SkinwalkerRenderer). Only run this to start the texture over: it overwrites any painting done on those files since.
 
 The look follows the trail-camera photo and the Rake: sickly pale skin stretched over a gaunt frame, cool
 grey-purple mottling, faint veins, ribs and spine pressing through, raw joints, filthy hands and feet,
@@ -210,6 +211,20 @@ def jaw_colour(p, n, name, t):
         col = mix(col, LIP, smoothstep(71.5, 72.0, y) * 0.8)          # lips along the top edge
     return col
 
+# How far the eyes' glow spills onto the bone around them, in eye radii, and how bright it is at the eye's edge.
+HALO_REACH = 2.4
+HALO_STRENGTH = 0.55
+
+def halo(p, eyes):
+    """How much eye glow lands on the head at point p (0 to HALO_STRENGTH), from the nearest eye."""
+    best = 0.0
+    for (cx, cy, cz), (rx, ry) in eyes:
+        if not (cz - 1.6 <= p[2] <= cz + 0.4):                         # only the socket around the eye, not behind it
+            continue
+        d = math.hypot((p[0] - cx) / rx, (p[1] - cy) / ry)
+        best = max(best, smoothstep(HALO_REACH, 1.0, d) * HALO_STRENGTH)
+    return best
+
 def eye_colour(s, t):
     d = math.hypot(s - 0.5, t - 0.5) / 0.7
     return mix(EYE_CORE, EYE_EDGE, smoothstep(0.35, 1.0, d))
@@ -230,6 +245,11 @@ def paint():
     W = H = 128 * TEXELS
     skin = Image.new("RGBA", (W, H), (0, 0, 0, 0)); sp = skin.load()
     glow = Image.new("RGBA", (W, H), (0, 0, 0, 0)); gp = glow.load()
+    eye_glow = Image.new("RGBA", (W, H), (0, 0, 0, 0)); ep = eye_glow.load()
+    eyes = []
+    for name, bone, a, b, tone, inf in g.CUBES:
+        if region(name, bone, tone) == "eye":
+            eyes.append((tuple((a[k] + b[k]) / 2 for k in range(3)), (abs(b[0] - a[0]) / 2, abs(b[1] - a[1]) / 2)))
     for i, c in enumerate(g.CUBES):
         name, bone, a, b, tone, inf = c
         reg = region(name, bone, tone)
@@ -256,7 +276,12 @@ def paint():
                         col = eye_colour(s, t)
                         gp[px, py] = tuple(int(v) for v in col) + (255,)
                         sp[px, py] = tuple(int(v) for v in col) + (255,)
+                        ep[px, py] = tuple(int(v) for v in col) + (255,)
                         continue
+                    if bone == "head" and 0 <= px < W and 0 <= py < H:
+                        k = halo(p, eyes)
+                        if k > 0.01:
+                            ep[px, py] = tuple(int(v * k) for v in EYE_EDGE) + (255,)
                     if reg == "hole": col = HOLE
                     elif reg == "mouth": col = MOUTH
                     elif reg == "teeth": col = teeth_colour(p, n, s, t, (name, bone, lo, hi))
@@ -270,11 +295,12 @@ def paint():
                     col = tuple(max(0, min(255, int(v * shade + grain))) for v in col)
                     if 0 <= px < W and 0 <= py < H:
                         sp[px, py] = col + (255,)
-    return skin, glow
+    return skin, glow, eye_glow
 
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
-    skin, glow = paint()
+    skin, glow, eye_glow = paint()
     skin.save(os.path.join(OUT_DIR, "skinwalker.png"))
-    glow.save(os.path.join(OUT_DIR, "skinwalker_eyes.png"))
-    print("wrote", os.path.join(OUT_DIR, "skinwalker.png"), "and skinwalker_eyes.png", skin.size)
+    glow.save(os.path.join(OUT_DIR, "skinwalker_glowmask.png"))
+    eye_glow.save(os.path.join(OUT_DIR, "skinwalker_eye_glow.png"))
+    print("wrote", os.path.join(OUT_DIR, "skinwalker.png"), ", skinwalker_glowmask.png and skinwalker_eye_glow.png", skin.size)

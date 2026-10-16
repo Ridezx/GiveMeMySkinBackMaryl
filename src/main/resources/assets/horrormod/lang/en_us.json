@@ -41,6 +41,11 @@
   "entity.horrormod.salt_projectile": "Salt",
   "entity.horrormod.dust_ball_projectile": "Dust Ball",
   "entity.horrormod.skinwalker": "Skinwalker",
+  "death.attack.horrormod.skinwalker": "%1$s was torn apart by %2$s",
+  "death.attack.horrormod.skinwalker.player": "%1$s was torn apart by %2$s",
+  "death.attack.horrormod.skinwalker.will_it_fit": "I wonder if %1$s's skin will fit this time...",
+  "death.attack.horrormod.skinwalker.why_doesnt_it_fit": "%1$s's skin doesn't fit WHY DOESN'T IT FIT!",
+  "death.attack.horrormod.skinwalker.glitched": "%1$s was ripped apart by S§kk§ri§kn§rw§ka§rlk§ke§rr",
   "entity.horrormod.gustav": "Gustav",
   "entity.horrormod.walter": "Walter",
   "entity.horrormod.frank": "Frank",
@@ -52,6 +57,11 @@
   "creativetab.horrormod.give_me_my_skin_back_maryl_functional": "Give Me My Skin Back, Maryl: Functional Blocks",
   "creativetab.horrormod.give_me_my_skin_back_maryl_ingredients": "Give Me My Skin Back, Maryl: Ingredients",
   "creativetab.horrormod.give_me_my_skin_back_maryl_food": "Give Me My Skin Back, Maryl: Food",
+
+  "menu.horrormod.title": "Give Me Back My Skin, Maryl",
+  "menu.horrormod.discord": "Discord",
+  "menu.horrormod.kofi": "Ko-fi",
+  "menu.horrormod.link_soon": "Link coming soon",
 
   "tooltips.horrormod.magic_block.tooltip": "§4I think he wants me to turn something in...§r",
   "tooltip.horrormod.chisel.shift_down": "Will change stone-based blocks to brick counterpart on right-click",

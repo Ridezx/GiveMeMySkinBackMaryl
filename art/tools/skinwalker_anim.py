@@ -782,6 +782,89 @@ def leap_frames():
     return [(0.0, RUN4, -lowest(RUN4)), (0.15, gather, -lowest(gather)), (0.3, launch, air),
             (0.5, reach, air), (0.65, land, -lowest(land)), (0.85, RUN4, -lowest(RUN4))]
 
+# ---------------------------------------------------------------- belly crawl
+def _sub(a, b): return tuple(a[i] - b[i] for i in range(3))
+def _addv(a, b): return tuple(a[i] + b[i] for i in range(3))
+def _mul(a, k): return tuple(v * k for v in a)
+def _dot(a, b): return sum(a[i] * b[i] for i in range(3))
+def _norm(a):
+    l = math.sqrt(_dot(a, a)) or 1.0
+    return _mul(a, 1 / l)
+
+def ik_joint(s, t, a, b, pole):
+    """Where the middle joint of a two-bone limb goes: the limb runs from s (lengths a then b) to t, bending
+    toward pole."""
+    d = _sub(t, s); dist = min(math.sqrt(_dot(d, d)), a + b - 1e-3); u = _norm(d)
+    x = (a * a - b * b + dist * dist) / (2 * dist); h = math.sqrt(max(0.0, a * a - x * x))
+    p = _norm(_sub(pole, _mul(u, _dot(pole, u))))
+    return _addv(_addv(s, _mul(u, x)), _mul(p, h))
+
+def aim(pose, bone, d):
+    """Turns a limb bone (which hangs along -Y at rest) so it points along world direction d."""
+    loc = mvec(mT(world_rot(PARENT[bone], pose)), _norm(d))
+    a = math.degrees(math.asin(max(-1.0, min(1.0, -loc[2])))); c = math.degrees(math.atan2(loc[0], -loc[1]))
+    pose[bone] = (a, 0.0, c)
+
+# Crawling on its belly (to get through 1-block-high gaps and 1x1 holes; under 0.9 blocks tall in game): body flat
+# on the ground, head low with the face looking ahead, elbows out to the sides dragging it along, hind legs
+# splayed out behind like a lizard's, pushing. The hands and feet are placed on the ground and the elbows and
+# knees solved to reach them (ik_joint), diagonal pairs moving together, while the spine snakes side to side.
+PRONE = mirror(P(hips=-90, neck=-4, head=82))
+PRONE_STRIDE = 16.0            # how far each hand and foot travels back along the ground per cycle (px)
+PRONE_STANCE = 0.6             # share of the cycle a hand or foot is planted
+
+def body_lift(pose):
+    """Height that puts the lowest point of the body (not the limbs) on the ground."""
+    return -min(world(q, c[1], pose)[1] for c in CUBES if c[1] in ("hips", "torso", "chest", "neck", "head", "jaw")
+                for q in corners(c))
+
+def limb_track(u, front, back, lift_h):
+    """Position along the stride (z) and height off the ground for a hand or foot at cycle phase u."""
+    if u < PRONE_STANCE:
+        k = u / PRONE_STANCE
+        return front + (back - front) * k, 0.0
+    k = (u - PRONE_STANCE) / (1 - PRONE_STANCE)
+    k2 = smooth(k)
+    return back + (front - back) * k2, lift_h * math.sin(math.pi * k)
+
+def prone_frame(t):
+    """One moment (t = 0..1) of the belly crawl."""
+    pose = _editable(PRONE)
+    ph = 2 * math.pi * t
+    sway = math.sin(ph)
+    _add(pose, "hips", 0, 5 * sway, 0)             # the body snakes side to side
+    _add(pose, "chest", 0, 0, -8 * sway)
+    _add(pose, "neck", 0, 0, 5 * sway)
+    _add(pose, "head", 0, 4 * sway, 0)
+    pose = _frozen(pose)
+    lift = body_lift(pose) + 0.5
+    for side, sx, off in (("right", -1, 0.0), ("left", 1, 0.5)):
+        # arm: hand planted ahead of the shoulder, dragging the body forward, then reaching ahead again
+        s = world(PIVOT[f"{side}_arm"], f"{side}_arm", pose, lift)
+        z, y = limb_track((t + off) % 1.0, s[2] - 18, s[2] - 18 + PRONE_STRIDE, 5.0)
+        hand = (s[0] + sx * 12, HAND_FLAT + y, z)
+        e = ik_joint(s, hand, 15, 16, (sx, 0.45, 0.3))
+        aim(pose, f"{side}_arm", _sub(e, s))
+        aim(pose, f"{side}_forearm", _sub(hand, e))
+        # leg (diagonal pair: this side's leg moves with the other arm): the knee out to the side and
+        # forward like a frog's, pushing the foot back along the ground
+        h = world(PIVOT[f"{side}_leg"], f"{side}_leg", pose, lift)
+        z, y = limb_track((t + off + 0.5) % 1.0, h[2] + 12, h[2] + 12 + PRONE_STRIDE, 4.0)
+        ankle_y = 2.5 + y
+        for _ in range(3):
+            ankle = (h[0] + sx * 17, ankle_y, z)
+            k = ik_joint(h, ankle, 20, 16, (sx, 0.3, -0.5))
+            aim(pose, f"{side}_leg", _sub(k, h))
+            aim(pose, f"{side}_shin", _sub(ankle, k))
+            # the foot (it stands on its toes) lies back along the ground, toes pointing back and a little out
+            aim(pose, f"{side}_foot", (sx * 0.35, -0.25, 1.0))
+            dip = min(world(q, c[1], pose, lift)[1] for c in CUBES
+                      if c[1] == f"{side}_foot" or c[1].startswith(f"{side}_toe") for q in corners(c))
+            ankle_y += y - dip
+            if abs(dip - y) < 0.05:
+                break
+    return pose, -lowest(pose)
+
 # Swimming: a dog paddle, body flat at the surface, head held up out of the liquid.
 SWIM = mirror(P(hips=-86, neck=64, head=18,
                 right_arm=(126, 0, -12), right_forearm=-30, right_hand=40,
@@ -1389,6 +1472,102 @@ def hurt_frames(base, flinch):
     return keyed([(0.0, base), (0.08, flinch, {"back": 2.5}), (0.2, blend(flinch, base, 0.4), {"back": 2.0}),
                   (0.45, base)], step=0.025)
 
+# ---------------------------------------------------------------- character
+PINCH = (50, 45, 45)                            # fingers pinching skin between the index finger and thumb
+
+# --- sniffing: head low, quick little sniffs (the nose pushing forward), turning to follow the scent
+def _sniff(base, t_pushes, turns):
+    """Keys for a sniffing loop: base pose, nose pushes at the given times, head turns [(time, yaw), ...]."""
+    def at(yaw, push):
+        p = dict(base)
+        n, h = base["neck"], base["head"]
+        p["neck"] = (n[0] + 3 * push, n[1] + yaw * 0.4, n[2]); p["head"] = (h[0] - 4 * push, h[1] + yaw * 0.6, h[2])
+        return p
+    def yaw_at(t):
+        pts = sorted(turns)
+        for (t0, y0), (t1, y1) in zip(pts, pts[1:]):
+            if t0 <= t <= t1:
+                return y0 + (y1 - y0) * smooth((t - t0) / (t1 - t0)) if t1 > t0 else y1
+        return pts[-1][1]
+    times = sorted({round(x, 3) for x in [k for k, _ in turns] + [t for tp in t_pushes for t in (tp - 0.07, tp, tp + 0.07)]})
+    keys = []
+    for t in times:
+        push = 1.0 if any(abs(t - tp) < 1e-6 for tp in t_pushes) else 0.0
+        keys.append((t, at(yaw_at(t), push)))
+    return keys
+
+SNIFF = face(edit(STAND, hips=-8, chest=-30, neck=36, right_arm=(14, 0, -4), right_leg=34, right_shin=-72), -28)
+SNIFF4 = face(edit(REST4, neck=6), -55)
+
+def sniff_frames():
+    pushes = [0.15, 0.3, 0.45, 1.1, 1.25, 1.95, 2.1]
+    return keyed(_sniff(SNIFF, pushes, [(0.0, 0), (0.75, 0), (0.95, 22), (1.6, 22), (1.8, 0), (2.4, 0)]), step=0.025)
+
+def sniff4_frames():
+    pushes = [0.2, 0.35, 0.8, 0.95, 1.5, 1.65, 2.2, 2.35]
+    return keyed(_sniff(SNIFF4, pushes, [(0.0, 0), (0.7, -22), (1.4, 0), (2.1, 22), (2.8, 0)]), step=0.025)
+
+# --- head tilt: the slow curious dog tilt, a little twitch, a snap to the other side, back
+def _tilt_keys(base, up=0):
+    h, n = base["head"], base["neck"]
+    tilt_r = dict(base, neck=(n[0] + 4 + up, n[1], n[2] + 5), head=(h[0] + 8, h[1] + 8, h[2] + 26))
+    twitch = dict(tilt_r, head=(tilt_r["head"][0], tilt_r["head"][1], tilt_r["head"][2] + 5))
+    tilt_l = dict(base, neck=(n[0] + 4 + up, n[1], n[2] - 4), head=(h[0] + 8, h[1] - 6, h[2] - 24))
+    return [(0.0, base), (0.5, tilt_r), (0.9, tilt_r), (1.0, twitch), (1.1, tilt_r), (1.45, tilt_r),
+            (1.6, tilt_l), (2.1, tilt_l), (2.6, base)]
+
+def tilt_frames():
+    return keyed(_tilt_keys(STAND), step=0.025)
+
+def tilt4_frames():
+    return keyed(_tilt_keys(REST4, up=6), step=0.025)
+
+# --- adjusting the skin. Standing: pinches the skin of its jaw and tugs it twice (the head leaning into the
+# hand), pinches and pulls at the skin of its other forearm, then rolls its shoulders as if settling into the
+# skin. On all fours: lifts a front hand to tug at its jaw, puts it back down, then shakes its whole body like
+# a wet dog, as if the skin had slipped. (The arm angles that bring the fingers to the jaw were solved so they
+# touch it without going inside the head.)
+def _skin_poses():
+    jaw = with_hands(edit(STAND, neck=16, head=(5, -20, -10)), PINCH, None)
+    jaw.update({"right_arm": (67.5, -10, 0), "right_forearm": (150, 0, 0), "right_hand": (90, 0, 0)})
+    tug = dict(jaw, right_arm=(59.5, -10, 0), right_forearm=(140, 0, 0), head=(5, -20, -2))
+    held = with_hands(edit(STAND, neck=8, head=(5, -15, 12)), None, PINCH)
+    held.update({"right_arm": (35, 0, 10), "right_forearm": (85, 0, 0),
+                 "left_arm": (-30, 0, -30), "left_forearm": (130, 0, 0), "left_hand": (-26.2, 0, -10)})
+    pull = dict(held, left_arm=(-38, 0, -30), left_forearm=(120, 0, 0))
+    roll_a = edit(STAND, chest=(-10, 0, 8), neck=(5, 0, -8), head=(5, 0, 6))
+    roll_b = edit(STAND, chest=(-10, 0, -8), neck=(5, 0, 8), head=(5, 0, -6))
+    return jaw, tug, held, pull, roll_a, roll_b
+SKIN_JAW, SKIN_TUG, SKIN_HELD, SKIN_PULL, SKIN_ROLL_A, SKIN_ROLL_B = _skin_poses()
+
+def adjust_skin_frames():
+    return keyed([(0.0, STAND), (0.45, SKIN_JAW), (0.65, SKIN_TUG), (0.85, SKIN_JAW), (1.05, SKIN_TUG),
+                  (1.4, SKIN_HELD), (1.6, SKIN_PULL), (1.8, SKIN_HELD), (2.0, SKIN_PULL),
+                  (2.4, SKIN_ROLL_A), (2.7, SKIN_ROLL_B), (3.1, STAND)], step=0.025)
+
+def _skin4_poses():
+    jaw = with_hands(dict(REST4, head=(REST4["head"][0], -15, 12)), PINCH, None)
+    jaw.update({"right_arm": (60, 10, -20), "right_forearm": (150, 0, 0), "right_hand": (42.5, 0, 0)})
+    tug = dict(jaw, right_arm=(52, 10, -20), right_forearm=(140, 0, 0), head=(REST4["head"][0], -15, 20))
+    return jaw, tug
+SKIN4_JAW, SKIN4_TUG = _skin4_poses()
+
+def adjust_skin4_frames():
+    keys = [(0.0, REST4), (0.4, SKIN4_JAW), (0.6, SKIN4_TUG), (0.8, SKIN4_JAW), (1.0, SKIN4_TUG), (1.35, REST4)]
+    # the dog shake: a fast twist rolling from the head down through the body, building up and dying away
+    t, step = 1.4, 0.04
+    while t < 2.66:
+        u = (t - 1.4) / 1.25
+        amp = smooth(min(1.0, u / 0.25)) * (1 - smooth(max(0.0, (u - 0.7) / 0.3)))
+        w = math.sin(2 * math.pi * 6.0 * (t - 1.4))
+        p = _editable(REST4)
+        _add(p, "chest", 0, 18 * amp * w, 10 * amp * math.sin(2 * math.pi * 6.0 * (t - 1.4) + 0.6))
+        _add(p, "neck", 0, -24 * amp * w, 0); _add(p, "head", 0, -18 * amp * w, 8 * amp * w)
+        _add(p, "hips", 0, -10 * amp * w, -6 * amp * math.sin(2 * math.pi * 6.0 * (t - 1.4) - 0.6))
+        keys.append((round(t, 3), _frozen(p))); t += step
+    keys.append((2.9, REST4))
+    return keyed(keys, step=0.02)
+
 # --- deaths. End poses: face down (standing death), on its side (on all fours)
 # Face down, everything slumped onto the ground (fitted limb by limb so each part rests on it): head turned
 # on its side, arms limp at its sides, legs and feet flat behind it, toes lying along the ground.
@@ -1459,7 +1638,8 @@ HAND_RATE = {}
 GROUP_OF = {}
 for _g, _names in (("Idle", ("rest_on_fours", "rest_standing", "alert", "alert_on_fours", "look_around", "look_around_on_fours")),
                    ("Movement", ("walk_on_fours", "walk_standing", "run_on_fours", "flee_on_fours", "run_standing",
-                                 "flee_standing", "stand_to_crawl", "crawl_to_stand", "climb_up", "climb_down",
+                                 "flee_standing", "stand_to_crawl", "crawl_to_stand", "crawl_prone", "crawl_to_prone", "prone_to_crawl",
+                                 "climb_up", "climb_down",
                                  "climb_over_ledge", "climb_over_ledge_to_stand", "leap", "leap_standing", "swim")),
                    ("Sleep", ("lie_down_on_fours", "lie_down_standing", "sleep_on_fours", "sleep_standing",
                               "wake_on_fours_to_on_fours", "wake_on_fours_to_standing", "wake_standing_to_on_fours",
@@ -1467,7 +1647,9 @@ for _g, _names in (("Idle", ("rest_on_fours", "rest_standing", "alert", "alert_o
                    ("Combat", ("scream_standing", "scream_on_fours", "enraged_windup_standing", "enraged_windup_on_fours",
                                "punch", "slap_on_fours", "bite_on_fours")),
                    ("Reactions", ("hurt_standing", "hurt_on_fours")),
-                   ("Death", ("death_standing", "death_on_fours", "dust_death_standing", "dust_death_on_fours"))):
+                   ("Death", ("death_standing", "death_on_fours", "dust_death_standing", "dust_death_on_fours")),
+                   ("Character", ("sniff_standing", "sniff_on_fours", "head_tilt_standing", "head_tilt_on_fours",
+                                  "adjust_skin_standing", "adjust_skin_on_fours"))):
     for _n in _names:
         GROUP_OF[_n] = _g
 
@@ -1576,6 +1758,10 @@ def build():
     flee = cycle(flee_frame, 0.4, 10)
     stand_to_crawl = transition(STAND, REST4, 0.9, through=BEND)
     crawl_to_stand = transition(REST4, STAND, 0.9, through=BEND)
+    prone = cycle(prone_frame, 0.6, 12)
+    prone0 = prone[0]
+    crawl_to_prone = densify([(0.0, REST4, -lowest(REST4)), (0.8, prone0[1], prone0[2])], steps=6)
+    prone_to_crawl = densify([(0.0, prone0[1], prone0[2]), (0.8, REST4, -lowest(REST4))], steps=6)
     climb_up = cycle(lambda t: climb_frame(t), 1.0, 8)
     climb_down = cycle(lambda t: climb_frame(t, down=True), 1.2, 8)
     ledge = ledge_frames()
@@ -1603,7 +1789,13 @@ def build():
                   ("death_standing", "hold", death_frames()),
                   ("death_on_fours", "hold", death4_frames()),
                   ("dust_death_standing", "hold", dust_death_frames()),
-                  ("dust_death_on_fours", "hold", dust_death4_frames())]
+                  ("dust_death_on_fours", "hold", dust_death4_frames()),
+                  ("sniff_standing", "loop", sniff_frames()),
+                  ("sniff_on_fours", "loop", sniff4_frames()),
+                  ("head_tilt_standing", "hold", tilt_frames()),
+                  ("head_tilt_on_fours", "hold", tilt4_frames()),
+                  ("adjust_skin_standing", "hold", adjust_skin_frames()),
+                  ("adjust_skin_on_fours", "hold", adjust_skin4_frames())]
     leap_standing = leap_standing_frames()
     ledge_to_stand = ledge_to_stand_frames()
     return {"meta": {"format_version": "4.10", "model_format": "modded_entity", "box_uv": True},
@@ -1623,6 +1815,9 @@ def build():
                                            animation("flee_on_fours", "loop", 0.4, flee),
                                            animation("stand_to_crawl", "hold", 0.9, stand_to_crawl),
                                            animation("crawl_to_stand", "hold", 0.9, crawl_to_stand),
+                                           animation("crawl_prone", "loop", 0.6, prone),
+                                           animation("crawl_to_prone", "hold", 0.8, crawl_to_prone),
+                                           animation("prone_to_crawl", "hold", 0.8, prone_to_crawl),
                                            animation("climb_up", "loop", 1.0, climb_up),
                                            animation("climb_down", "loop", 1.2, climb_down),
                                            animation("climb_over_ledge", "hold", 1.0, ledge),
@@ -1635,9 +1830,117 @@ def build():
                           + [animation(n, l, ln, fr, hands=RELAXED_HANDS.get(n, "auto")) for n, l, ln, fr in sleep_set]
                           + [animation(n, l, fr[-1][0], fr, hands=RELAXED_HANDS.get(n, "auto")) for n, l, fr in combat_set]}
 
+# ---------------------------------------------------------------- GeckoLib export (what the game loads)
+ASSETS = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "main",
+                                       "resources", "assets", "horrormod"))
+SAMPLE_RATE = 40          # animation samples per second (two per game tick)
+
+def export_geckolib(model):
+    """Writes the model and animations in GeckoLib's (Bedrock) format, so the game shows exactly what Blockbench
+    shows:
+    - geometry: Bedrock mirrors X (pivots and cube origins negated) and turns X/Y rotations the other way;
+      textures use per-face UV rectangles at the cubes' exact sizes (GeckoLib's box UV would round them down
+      and miss the painted texture)
+    - animations: Blockbench's smooth (catmull-rom) curves are sampled at every key and 40 times a second, stored as straight
+      lines between samples (GeckoLib's own "catmullrom" is only an ease between two keys), with samples that a
+      straight line already reproduces (within 0.15 degrees / 0.02 px) left out to keep the file small."""
+    elements = {e["uuid"]: e for e in model["elements"]}
+    bones = []
+    def walk(grp, parent):
+        o = grp["origin"]
+        b = {"name": grp["name"], "pivot": [-o[0], o[1], o[2]]}
+        if parent:
+            b["parent"] = parent
+        r = grp.get("rotation")
+        if r and any(r):
+            b["rotation"] = [-r[0], -r[1], r[2]]
+        cubes = []
+        for ch in grp["children"]:
+            if isinstance(ch, dict):
+                continue
+            e = elements[ch]
+            lo = [min(e["from"][i], e["to"][i]) for i in range(3)]; hi = [max(e["from"][i], e["to"][i]) for i in range(3)]
+            w, h, d = (hi[i] - lo[i] for i in range(3))
+            u, v = e["uv_offset"]
+            faces = {"north": ([u + d, v + d], [w, h]), "east": ([u, v + d], [d, h]),
+                     "south": ([u + 2 * d + w, v + d], [w, h]), "west": ([u + d + w, v + d], [d, h]),
+                     "up": ([u + d, v], [w, d]), "down": ([u + d + w, v + d], [w, -d])}
+            cube_ = {"origin": [round(-hi[0], 4), round(lo[1], 4), round(lo[2], 4)], "size": [round(w, 4), round(h, 4), round(d, 4)],
+                     "uv": {k: {"uv": [round(a, 4) for a in uv_], "uv_size": [round(a, 4) for a in sz]} for k, (uv_, sz) in faces.items()}}
+            if e.get("inflate"):
+                cube_["inflate"] = e["inflate"]
+            cubes.append(cube_)
+        if cubes:
+            b["cubes"] = cubes
+        bones.append(b)
+        for ch in grp["children"]:
+            if isinstance(ch, dict):
+                walk(ch, grp["name"])
+    for grp in model["outliner"]:
+        walk(grp, None)
+    geo = {"format_version": "1.12.0", "minecraft:geometry": [{
+        "description": {"identifier": "geometry.skinwalker", "texture_width": 128, "texture_height": 128,
+                        "visible_bounds_width": 4, "visible_bounds_height": 7, "visible_bounds_offset": [0, 3.5, 0]},
+        "bones": bones}]}
+
+    def catmull(p0, p1, p2, p3, s_):
+        return 0.5 * (2 * p1 + (-p0 + p2) * s_ + (2 * p0 - 5 * p1 + 4 * p2 - p3) * s_ * s_ + (-p0 + 3 * p1 - 3 * p2 + p3) * s_ ** 3)
+    def sample(ks, t, loop, linear):
+        times = [k["time"] for k in ks]; n = len(ks)
+        vals = [[float(k["data_points"][0][c]) for c in "xyz"] for k in ks]
+        if n == 1:
+            return vals[0]
+        i = min(max([j for j in range(n) if times[j] <= t + 1e-9] or [0]), n - 2)
+        s_ = max(0.0, min(1.0, (t - times[i]) / (times[i + 1] - times[i])))
+        if linear:
+            return [vals[i][c] + (vals[i + 1][c] - vals[i][c]) * s_ for c in range(3)]
+        p0 = vals[i - 1] if i > 0 else (vals[-2] if loop else vals[0])
+        p3 = vals[i + 2] if i + 2 < n else (vals[1] if loop else vals[-1])
+        return [catmull(p0[c], vals[i][c], vals[i + 1][c], p3[c], s_) for c in range(3)]
+    def thin(points, tol):
+        """Keep only the samples a straight line between kept neighbours doesn't reproduce (Douglas-Peucker)."""
+        keep = {0, len(points) - 1}
+        stack = [(0, len(points) - 1)]
+        while stack:
+            a, b = stack.pop()
+            ta, va = points[a]; tb, vb = points[b]; worst, wi = 0.0, None
+            for i in range(a + 1, b):
+                t, v = points[i]; u = (t - ta) / (tb - ta)
+                err = max(abs(v[c] - (va[c] + (vb[c] - va[c]) * u)) for c in range(3))
+                if err > worst:
+                    worst, wi = err, i
+            if wi is not None and worst > tol:
+                keep.add(wi); stack += [(a, wi), (wi, b)]
+        return [points[i] for i in sorted(keep)]
+    anims = {}
+    for a in model["animations"]:
+        L = a["length"]; loop = a["loop"] == "loop"
+        n = max(1, int(round(L * SAMPLE_RATE)))
+        out = {}
+        for an in a["animators"].values():
+            for ch, tol in (("rotation", 0.15), ("position", 0.02)):
+                ks = sorted([k for k in an["keyframes"] if k["channel"] == ch], key=lambda k: k["time"])
+                if not ks:
+                    continue
+                linear = all(k.get("interpolation") == "linear" for k in ks)
+                times = sorted({round(L * i / n, 5) for i in range(n + 1)} | {round(k["time"], 5) for k in ks if 0 <= k["time"] <= L})
+                pts = [(t, sample(ks, t, loop, linear)) for t in times]      # every key, plus 40 samples a second
+                if all(max(abs(x) for x in v) < 1e-3 for _, v in pts):
+                    continue                                     # never leaves its rest position here
+                pts = thin(pts, tol)
+                out.setdefault(an["name"], {})[ch] = {f"{round(t, 4)}": [round(x, 3) for x in v] for t, v in pts}
+        anims[a["name"]] = {"loop": True if loop else ("hold_on_last_frame" if a["loop"] == "hold" else False),
+                            "animation_length": L, "bones": out}
+    os.makedirs(os.path.join(ASSETS, "geo", "entity"), exist_ok=True)
+    os.makedirs(os.path.join(ASSETS, "animations", "entity"), exist_ok=True)
+    json.dump(geo, open(os.path.join(ASSETS, "geo", "entity", "skinwalker.geo.json"), "w"), separators=(",", ":"))
+    json.dump({"format_version": "1.8.0", "animations": anims},
+              open(os.path.join(ASSETS, "animations", "entity", "skinwalker.animation.json"), "w"), separators=(",", ":"))
+
 if __name__ == "__main__":
     model = build()
     json.dump(model, open(os.path.join(OUT, "skinwalker_blockout.bbmodel"), "w"), indent=1)
+    export_geckolib(model)
     sheet(os.path.join(OUT, "skinwalker_reference.png"))
     frames = [render(*walk_frame(i / 4), "side", title=f"walk {i}/4") for i in range(4)]
     strip = Image.new("RGB", (sum(f.width for f in frames), frames[0].height)); x = 0
