@@ -10,26 +10,29 @@ These items are already in the game and are waiting for art.
 
 | Item | File | What it should be | Recommendation |
 |---|---|---|---|
-| Aspiraton Drop | `item/aspiraton_drop.png` | Shaped like lime dye, deep dried-blood red | Trace the lime dye silhouette and recolor it to dark, slightly brown reds so it reads as *dried* rather than fresh blood |
-| Rotted Pelt | `item/rotted_pelt.png` | Rotted human skin | Start from the Pelt art (`humanskin.png`) so they read as the same thing, then shift it toward sickly yellow-green and gray with a few dark holes |
-| Graft | `item/graft.png` | A small piece of human skin (skin graft) | A smaller, neater square or oval cut from the Pelt palette, with stitch marks or a clean cut edge, so it's clearly "cut from a Pelt" |
-| Scalpel | `item/scalpel.png` | A scalpel | Drawn diagonally, with the blade at the top-right and the handle at the bottom-left, like vanilla tools (the model holds it like a sword). Thin silver blade, slightly darker metal handle |
-| Holy Text | `item/holy_text.png` | A golden book | Use the vanilla book's shape with a gold cover and a small symbol on the front (keep the symbol generic, since it stands for any holy text) |
-| Salt | `item/salt.png` | Salt | A small pile of white crystals with light gray shading. Sugar is white powder, so make the grains chunkier and more cube-shaped to tell them apart |
-| Straw | `item/straw.png` | A drinking straw | A thin diagonal tube. The shot it fires uses the **Salt** texture, so Salt's art shows up in flight too. Optional charging/loaded frames are under Later |
-| Toy Gun | `item/toy_gun.png` | An old western 30-30 lever-action rifle in bright plastic colors | Drawn diagonally like the Scalpel (the model holds it like a tool). Keep the classic silhouette (long barrel, lever loop under the grip) but use flat toy colors, e.g. a bright red or blue body, a yellow lever, and an orange tip on the barrel like real toy guns have. Its shots use the Dust Ball texture |
-| Heroine | `item/heroine.png` | A female action figure | A small standing figure in a heroic pose, slightly worn or faded so it feels old and secondhand rather than new |
-| Crank | `item/crank.png` | A jack-in-the-box | A box with the crank handle on the side and the lid shut, so the shape alone hints at what's inside |
-| Her Favorite Dress | `item/her_favorite_dress.png` | A dress (Gustav's trade item) | Up to you: you haven't described it yet. A simple dress silhouette, maybe a little faded or stained to match the tone |
 | Mytoma | `block/mytoma.png` | Very dark red hardened blood | A **generated placeholder** is in place (mottled near-black red) so it isn't a missing texture; replace it with real art. Hardened/cracked, maybe with a faint glossy or veined look like dried blood |
-| Grape Hugs | `item/grape_hugs.png` | A styrofoam cup with purple inside | A white cup slightly wider at the top, seen from a little above so the purple drink shows at the rim. A faint purple drip down the side reads well at 16×16 |
-| Speedy Car | `block/speedy_car.png` + a 3D model | A toy Lamborghini in its box | It's a placed block now, and the inventory shows the same 3D model, so it needs a block texture rather than a flat item icon. Right now it's a placeholder red box with a yellow front (vanilla concrete). The real model can be made in Blockbench; the front face of the box should point north |
 
 ## Done
 
 | Item / block | File |
 |---|---|
 | Pelt | `item/humanskin.png` |
+| Toy Gun (held, 3D) | `item/toy_gun_held.png` + `models/item/toy_gun_held.json` (from `art/tools/toy_gun_model.py`): the rifle built from blocks after the reference photo, flat colour swatches |
+| Toy Gun scope overlay | `misc/toy_gun_scope.png` (256×256, from `art/tools/item_textures.py`): the round view through the toy scope, smoky brown at the rim, thin crosshair and a red dot |
+| Pile of Berries | `item/berry_pile.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Speedy Car | `block/speedy_car.png` + `models/block/speedy_car.json`: a toy supercar in a windowed display box (first version, from `art/tools/speedy_car_texture.py`) |
+| Aspiraton Drop | `item/aspiraton_drop.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Rotted Pelt | `item/rotted_pelt.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Graft | `item/graft.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Scalpel | `item/scalpel.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Holy Text | `item/holy_text.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Salt | `item/salt.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Straw | `item/straw.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Toy Gun | `item/toy_gun.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Heroine | `item/heroine.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Crank | `item/crank.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Her Favorite Dress | `item/her_favorite_dress.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
+| Grape Hugs | `item/grape_hugs.png` (first version, from `art/tools/item_textures.py`; paint over it freely) |
 | Cloth Strap | `item/tourniquet.png` |
 | Aspiraton | `item/aspiraton.png` |
 | Dust | `item/dust.png` |
@@ -41,8 +44,8 @@ These items are already in the game and are waiting for art.
 | Dust Bricks | `block/dustbricks.png` |
 | Avolition | `block/avolition.png` |
 | Magic Block | `block/magic_block.png` |
-| Nutrinon | Uses vanilla's water textures tinted bright red. Optional: draw `block/nutrinon_still.png` and `block/nutrinon_flowing.png` (animated, like water's) and point `NutrinonFluidType` at them. The Nutrinon Bucket draws the fluid automatically |
-| Tar | Uses vanilla's water textures tinted near-black. Optional: draw `block/tar_still.png` and `block/tar_flowing.png` (animated, like lava's) and point `TarFluidType` at them. The Tar Bucket draws the fluid automatically, so it needs no texture of its own |
+| Nutrinon | `block/nutrinon_still.png` + `block/nutrinon_flowing.png`, animated (first version, from `art/tools/fluid_textures.py`). The Nutrinon Bucket draws the fluid automatically |
+| Tar | `block/tar_still.png` + `block/tar_flowing.png`, animated (first version, from `art/tools/fluid_textures.py`). The Tar Bucket draws the fluid automatically |
 | Sweet Berry Bush | Uses vanilla's `sweet_berry_bush_stage3` texture. Optional: draw `item/sweet_berry_bush.png` and point the model at it if you want a custom look |
 
 `placeholderfood` and `placeholderfuel` are test items and don't need art.
@@ -57,5 +60,5 @@ These things are in the design but not in the game yet.
 | Gustav, Walter, Frank | Traders | **Needed now** for the placeholder: `entity/gustav.png`, `entity/walter.png`, `entity/frank.png`, 64×64 in the **vanilla villager texture layout** (start from a copy of the villager skin). Until then they show the missing texture. Once their real models are designed (e.g. in Blockbench), they get new textures for those models |
 | Skinwalker | The Rake: a gaunt, pale human head and stolen human skin stretched over a dog's frame (deep narrow chest, tucked waist, long thin arms, dog hind legs). The skin is visibly not its own: loose, draped, sliding off | **First texture done** (bald variation): `src/main/resources/assets/horrormod/textures/entity/skinwalker.png` (256x256, box UV), painted by `art/tools/skinwalker_texture.py` and linked into `art/skinwalker_blockout.bbmodel`, so it shows in Blockbench and can be painted over there. `skinwalker_glowmask.png` holds just the eyes; GeckoLib draws them glowing in the dark. `skinwalker_eye_glow.png` (also from the script) is the eyes plus a faint glow on the socket walls, added on top as light; black there adds nothing. Re-running the texture script overwrites hand painting. In game it uses this model and texture (GeckoLib) |
 | Hollow | Mob | Entity texture + model |
-| Odie | The Grim Reaper; only watches | Entity texture + model |
+| Odie | The Hat Man: tall man in a long dark coat, striped shirt, dark tie, face in shadow under a wide-brimmed hat | **First texture done**: `textures/entity/odie.png`, painted with the model by `art/tools/odie_model.py` (re-running it overwrites hand painting) |
 | Sandman, Angel | Mobs | Later |

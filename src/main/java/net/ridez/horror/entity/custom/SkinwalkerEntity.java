@@ -13,6 +13,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.tags.DamageTypeTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
@@ -43,6 +44,17 @@ import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.ridez.horror.HorrorMod;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
+import net.minecraft.world.level.PathNavigationRegion;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.pathfinder.Path;
+import net.minecraft.world.level.pathfinder.PathFinder;
+import net.minecraft.world.level.pathfinder.WalkNodeEvaluator;
+import net.ridez.horror.sound.ModSounds;
 import org.jetbrains.annotations.Nullable;
 import software.bernie.geckolib.animatable.GeoEntity;
 import software.bernie.geckolib.animatable.instance.AnimatableInstanceCache;
@@ -136,14 +148,24 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     private static final double DAWN_GONE_DISTANCE = 64.0;
     // Its hitbox: tall standing, half as tall on all fours, low lying asleep.
     private static final EntityDimensions STANDING_SIZE = EntityDimensions.scalable(0.9F, 4.5F);
-    private static final EntityDimensions ON_FOURS_SIZE = EntityDimensions.scalable(0.9F, 2.4F);
-    private static final EntityDimensions ASLEEP_SIZE = EntityDimensions.scalable(0.9F, 1.0F);
-    private static final EntityDimensions PRONE_SIZE = EntityDimensions.scalable(0.9F, 0.9F);
-    // On its belly it crawls at 30% of its speed, about as fast as a player walks slowly.
-    private static final AttributeModifier PRONE_SPEED = new AttributeModifier(
-            ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "skinwalker_prone"), -0.7, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
-    // Getting down onto its belly or back up takes 0.8 seconds; with room around it for 3 seconds, it gets up.
-    private static final int PRONE_CHANGE_TICKS = 16;
+    // (hitboxes are square from above, so on all fours and asleep, where his body is long, they're wider to cover
+    // more of it; the model is drawn centred on the box, see getBodyOffset)
+    private static final EntityDimensions ON_FOURS_SIZE = EntityDimensions.scalable(1.8F, 2.4F);
+    private static final EntityDimensions ASLEEP_SIZE = EntityDimensions.scalable(1.8F, 1.0F);
+    // Its low forms, for getting through tunnels too small for it otherwise (none of them wider than a block):
+    // stooping (on its hind legs but folded over, for 3-high gaps), creeping (low on all fours, for 2-high gaps)
+    // and dragging itself on its belly (for 1x1 holes). Their hitboxes, and how fast each goes (a share of its
+    // speed; ground speed goes roughly with its square): stooping 56% (about 2 blocks a second), creeping 50%
+    // (about 1.6), on its belly 30% (about 0.6).
+    public static final int NOT_LOW = 0, STOOPING = 1, CREEPING = 2, ON_BELLY = 3;
+    private static final EntityDimensions[] LOW_SIZES = {null, EntityDimensions.scalable(0.9F, 2.9F),
+            EntityDimensions.scalable(0.9F, 1.9F), EntityDimensions.scalable(0.9F, 0.9F)};
+    private static final double[] LOW_SPEED = {0.0, -0.44, -0.5, -0.7};
+    private static final ResourceLocation LOW_SPEED_ID = ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "skinwalker_low");
+    // Changing between low forms (or getting down into one, or back up) takes 0.8 seconds. It rises to a taller
+    // low form once there has been room for it for half a second, and back to all fours after 3 seconds of room.
+    private static final int LOW_CHANGE_TICKS = 16;
+    private static final int RISE_TICKS = 10;
     private static final int PRONE_GET_UP_TICKS = 60;
     // Its hits: a flat 8 damage that armor, its enchantments and the difficulty don't change
     // (data/horrormod/damage_type/skinwalker.json and the damage_type tags it's in).
@@ -159,6 +181,32 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     private static final int SLEEPY_TICKS = 100;
     // Screams while chasing a player: the first soon after it starts, then every 3 to 7 seconds.
     private static final int CHASE_SCREAM_FIRST = 10, CHASE_SCREAM_MIN = 60, CHASE_SCREAM_MAX = 140;
+    // Finding a way to whoever it's after, once a second: if there's none at its size but there is one on its
+    // belly (a 1x1 hole into a shelter), it goes to where the way gets too small and gets down there. With no way
+    // at all for 15 seconds it gives up on them and goes back to roaming, leaving them be for 30 seconds (unless
+    // they hurt it).
+    private static final int ROUTE_INTERVAL = 20;
+    private static final int GIVE_UP_TICKS = 300;
+    private static final int LEAVE_BE_TICKS = 600;
+    // Once down on its belly to get through a gap, it stays down at least this long (or it would get up again
+    // before it had crawled in, still having room around it).
+    private static final int SQUEEZE_COMMIT_TICKS = 100;
+    // Knocking: roaming, it goes to a closed door within 5 blocks, kneels and knocks (the raps land at these ticks
+    // of the knock animation), then speaks through it while it listens, and afterwards waits by the door for 10 to
+    // 20 seconds, staring at it. Footsteps it hears meanwhile don't send it searching (or running off): it's
+    // waiting for whoever is in there. At most one knock a minute, and not the same door again for 5 minutes; if
+    // it can't get to the door within 10 seconds it leaves it.
+    private static final int KNOCK_RANGE = 5;
+    private static final int[] KNOCK_RAP_TICKS = {22, 27, 32};
+    private static final int KNOCK_VOICE_TICK = 46;
+    private static final int LINGER_MIN_TICKS = 200, LINGER_MAX_TICKS = 400;
+    // Calm, it ambles: slowly (about 2 blocks a second, a third of its chasing speed) and only now and then
+    // (on average every 20 seconds).
+    private static final double AMBLE_SPEED = 0.3;
+    private static final int AMBLE_INTERVAL = 400;
+    private static final int KNOCK_COOLDOWN = 60 * 20;
+    private static final long SAME_DOOR_COOLDOWN = 5 * 60 * 20;
+    private static final int KNOCK_APPROACH_TICKS = 200;
 
     // Synced to the client, which picks the animations.
     private static final EntityDataAccessor<Boolean> ON_FOURS = SynchedEntityData.defineId(SkinwalkerEntity.class, EntityDataSerializers.BOOLEAN);
@@ -167,7 +215,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     private static final EntityDataAccessor<Boolean> SLEEPING = SynchedEntityData.defineId(SkinwalkerEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> ALERT = SynchedEntityData.defineId(SkinwalkerEntity.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Boolean> DUST_DEATH = SynchedEntityData.defineId(SkinwalkerEntity.class, EntityDataSerializers.BOOLEAN);
-    private static final EntityDataAccessor<Boolean> PRONE = SynchedEntityData.defineId(SkinwalkerEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Integer> LOW = SynchedEntityData.defineId(SkinwalkerEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Boolean> CLIMBING = SynchedEntityData.defineId(SkinwalkerEntity.class, EntityDataSerializers.BOOLEAN);
     // The one-off action it's doing (an index into ACTIONS, -1 for none) and a counter that goes up with every
     // new action, so the same action twice in a row plays twice.
@@ -182,9 +230,10 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     private static final List<String> ACTIONS = List.of("punch", "slap_on_fours", "bite_on_fours",
             "scream_standing", "scream_on_fours", "hurt_standing", "hurt_on_fours",
             "enraged_windup_standing", "enraged_windup_on_fours", "lie_down_standing", "lie_down_on_fours",
-            "wake_standing_to_standing", "wake_standing_to_on_fours", "wake_on_fours_to_standing", "wake_on_fours_to_on_fours");
+            "wake_standing_to_standing", "wake_standing_to_on_fours", "wake_on_fours_to_standing", "wake_on_fours_to_on_fours",
+            "knock_standing", "knock_on_fours");
     private static final float[] ACTION_SECONDS = {0.85F, 0.6F, 0.6F, 2.1F, 2.1F, 0.45F, 0.45F, 2.0F, 2.0F, 2.4F, 3.6F,
-            1.7F, 2.2F, 1.9F, 1.0F};
+            1.7F, 2.2F, 1.9F, 1.0F, 5.4F, 5.4F};
     // Seconds each death animation lasts; the body stays a second longer before it's removed.
     private static final float DEATH_SECONDS = 2.0F, DEATH_ON_FOURS_SECONDS = 1.8F,
             DUST_DEATH_SECONDS = 5.6F, DUST_DEATH_ON_FOURS_SECONDS = 5.5F;
@@ -192,7 +241,8 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     private static final int STANCE_CHANGE_TICKS = 18;
     // Ground speed (blocks per tick) each gait's animation is made for; the animation speeds up or slows
     // down to match how fast it's actually moving, so its feet don't slide.
-    private static final double WALK_SPEED = 0.12, RUN_SPEED = 0.32, FLEE_SPEED_ANIM = 0.9, CRAWL_SPEED = 0.11, CLIMB_SPEED = 0.15;
+    private static final double WALK_SPEED = 0.12, RUN_SPEED = 0.32, FLEE_SPEED_ANIM = 0.9, CRAWL_SPEED = 0.068, CLIMB_SPEED = 0.15,
+            CREEP_SPEED = 0.045, STOOP_SPEED = 0.089;
     // While idle, now and then it sniffs, tilts its head or tugs at its skin (on average every 20 seconds).
     private static final int IDLE_FLAVOR_CHANCE = 400;
     private static final Map<String, RawAnimation> LOOPS = new HashMap<>(), ONCE = new HashMap<>(), HOLD = new HashMap<>(),
@@ -200,11 +250,11 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
 
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
     // Client-side animation state
-    private boolean shownOnFours;
-    private boolean stanceSeen;
-    private int stanceChangedAt = -STANCE_CHANGE_TICKS;
-    private boolean shownProne;
-    private int proneChangedAt = -PRONE_CHANGE_TICKS;
+    // the form it was last shown in (stand, crawl, stoop, creep or prone), and the change it's animating
+    private String shownForm = "stand";
+    private String formFrom = "stand";
+    private int formChangedAt = -LOW_CHANGE_TICKS - 2;
+    private boolean formSeen;
     @Nullable
     private String idleFlavor;
     private int idleFlavorUntil;
@@ -262,14 +312,44 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     @Nullable
     private Vec3 stuckFrom;
     private int roomTicks;
+    private int risingTo;
     private int sleepyTicks;
     private int chaseScreamIn = CHASE_SCREAM_FIRST;
+    // Navigators that plan paths as if it were in each low form (see LowNavigation; indexed by form), where to get
+    // down to squeeze through and into which form, how long it has found no way at all, and who it has given up
+    // on (until when).
+    private final PathNavigation[] lowNavigations = new PathNavigation[ON_BELLY + 1];
+    @Nullable
+    private BlockPos squeezeAt;
+    private int squeezeForm;
+    private int squeezeCommitTicks;
+    private int noWayTicks;
+    private final Map<UUID, Integer> leftBe = new HashMap<>();
+    // knocking: the door it's knocking on and how far into the knock it is, the wait before the next knock, and
+    // when it last knocked on each door
+    @Nullable
+    private BlockPos knockDoor;
+    private int knockTicks;
+    private int knockCooldown;
+    private final Map<BlockPos, Long> knockedDoors = new HashMap<>();
+    // after knocking: how much longer it waits by the door
+    @Nullable
+    private BlockPos lingerDoor;
+    private int lingerTicks;
 
     public SkinwalkerEntity(EntityType<? extends Monster> pType, Level pLevel) {
         super(pType, pLevel);
         // Rolled once when created; a saved Skinwalker keeps both (see readAdditionalSaveData).
         this.huntsOnSight = this.random.nextFloat() < HUNTS_ON_SIGHT_CHANCE;
-        this.entityData.set(ON_FOURS, this.random.nextBoolean());
+        // The form is picked on the server only: a game showing it would otherwise pick its own at random, and the
+        // server never sends "standing" (the default) when it first shows the Skinwalker to a player, so the two
+        // could disagree (on all fours on screen, standing on the server: the wrong scream, the wrong hitbox).
+        if (!pLevel.isClientSide()) {
+            this.entityData.set(ON_FOURS, this.random.nextBoolean());
+        }
+        for (int form = STOOPING; form <= ON_BELLY; form++) {
+            this.lowNavigations[form] = new LowNavigation(this, pLevel, 4 - form);       // 3, 2 and 1 blocks high
+        }
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -294,7 +374,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         pBuilder.define(SLEEPING, false);
         pBuilder.define(ALERT, false);
         pBuilder.define(DUST_DEATH, false);
-        pBuilder.define(PRONE, false);
+        pBuilder.define(LOW, NOT_LOW);
         pBuilder.define(CLIMBING, false);
         pBuilder.define(ACTION, -1);
         pBuilder.define(ACTION_COUNT, 0);
@@ -314,15 +394,20 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         this.goalSelector.addGoal(1, new FleeGoal());
         this.goalSelector.addGoal(1, new LeaveAtDawnGoal());
         this.goalSelector.addGoal(1, new AlertGoal());
+        this.goalSelector.addGoal(1, new SqueezeGoal());
         this.goalSelector.addGoal(2, new RetreatGoal());
         this.goalSelector.addGoal(2, new MeleeAttackGoal(this, 1.0, false));
-        this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.8));
+        this.goalSelector.addGoal(4, new KnockGoal());
+        this.goalSelector.addGoal(3, new LingerGoal());
+        WaterAvoidingRandomStrollGoal amble = new WaterAvoidingRandomStrollGoal(this, AMBLE_SPEED);
+        amble.setInterval(AMBLE_INTERVAL);
+        this.goalSelector.addGoal(5, amble);
         this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 16.0F));
         this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
         // it has to have seen a player (1.5 seconds in sight) to go after them, and can't while asleep
         this.targetSelector.addGoal(1, new NearestAttackableTargetGoal<>(this, Player.class, 10, true, false,
                 player -> this.huntsOnSight && !this.isFleeing() && !this.sleeping && !this.leavingAtDawn
-                        && player instanceof Player seen && this.hasSeen(seen)));
+                        && player instanceof Player seen && this.hasSeen(seen) && !this.leavingBe(seen)));
     }
 
     @Override
@@ -455,7 +540,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     // Starts a one-off animation (the client plays it, see animate). Anything that happens while it's still
     // getting up from sleep waits until it's up.
     private void playAction(String name) {
-        if (this.isProne()) {
+        if (this.isLow()) {
             return;                                 // its one-off animations are for standing or all fours
         }
         if (this.isWaking()) {
@@ -478,7 +563,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
 
     // ---------------------------------------------------------------- calm, sleep, hearing (server side)
     private boolean isCalm() {
-        return !this.leavingAtDawn && !this.sleeping && !this.isProne() && this.getTarget() == null && !this.isFleeing() && this.retreatTicks == 0 && this.alertTicks == 0
+        return !this.leavingAtDawn && !this.sleeping && !this.isLow() && this.getTarget() == null && !this.isFleeing() && this.retreatTicks == 0 && this.alertTicks == 0
                 && this.windupTicks == 0 && this.rageTicks == 0 && this.holdTicks == 0 && this.circleTicks == 0;
     }
 
@@ -491,9 +576,14 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
             this.changedForm = true;
             this.entityData.set(ON_FOURS, !this.isOnFours());
             this.holdTicks += STANCE_CHANGE_TICKS;
-        } else if (this.calmTicks >= SLEEP_TICKS && this.onGround() && !this.isInWater()) {
+        } else if (this.calmTicks >= SLEEP_TICKS && this.canLieDownHere()) {
             this.lieDown();
         }
+    }
+
+    // On the ground and out of the water (a puddle too: lying down, even shallow water would float it).
+    private boolean canLieDownHere() {
+        return this.onGround() && !this.isInWater();
     }
 
     private void lieDown() {
@@ -565,8 +655,8 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
 
     // A sound it can hear at pos: footsteps (see listen) or a block placed or broken (see SkinwalkerHearing).
     public void hearSound(Vec3 pos) {
-        if (this.leavingAtDawn || !this.isAlive()) {
-            return;
+        if (this.leavingAtDawn || !this.isAlive() || !this.sleeping && (this.knockDoor != null || this.lingerTicks > 0)) {
+            return;                                 // (knocking or waiting at a door, it pays footsteps no mind)
         }
         if (this.sleeping) {
             this.wakeUp(pos, false);
@@ -595,6 +685,8 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         }
         if (this.level().isClientSide()) {
             this.tickIdleFlavor();
+            this.tickBodyOffset();
+            this.tickEyeGlow();
             return;
         }
         if (this.windupTicks > 0) {
@@ -607,10 +699,11 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
             }
         }
         AttributeInstance speed = this.getAttribute(Attributes.MOVEMENT_SPEED);
-        if (this.isProne()) {
-            speed.addOrUpdateTransientModifier(PRONE_SPEED);
+        if (this.isLow()) {
+            speed.addOrUpdateTransientModifier(new AttributeModifier(LOW_SPEED_ID, LOW_SPEED[this.getLow()],
+                    AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
         } else {
-            speed.removeModifier(PRONE_SPEED.id());
+            speed.removeModifier(LOW_SPEED_ID);
         }
         if (this.rageTicks > 0) {
             this.rageTicks--;
@@ -623,6 +716,16 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         }
         if (this.retreatTicks > 0) {
             this.retreatTicks--;
+        }
+        if (this.knockCooldown > 0) {
+            this.knockCooldown--;
+        }
+        if (this.lingerTicks > 0 && (--this.lingerTicks == 0 || this.getTarget() != null || this.isFleeing() || this.leavingAtDawn)) {
+            this.lingerTicks = 0;
+            this.lingerDoor = null;
+        }
+        if (this.squeezeCommitTicks > 0) {
+            this.squeezeCommitTicks--;
         }
         if (this.pendingAction != null && !this.isWaking()) {
             String next = this.pendingAction;
@@ -647,10 +750,15 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
             this.tickCalm();
             this.tickClimb();
             this.tickStuck();
-            this.tickProne();
+            this.tickLow();
+            this.tickRoute();
+            this.tickKnock();
             this.tickChaseScream();
             if (this.sleepyTicks > 0 && --this.sleepyTicks == 0) {
                 this.fallAsleep();
+            }
+            if (this.sleeping && this.isInWater()) {
+                this.wakeUp(null, true);            // water came over it: it gets up
             }
         }
         this.entityData.set(FLEEING, this.isFleeing());
@@ -661,6 +769,43 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
 
     public boolean isOnFours() {
         return this.entityData.get(ON_FOURS);
+    }
+
+    // Client: how far (blocks) the model is drawn back from the entity's position so his body sits centred on the
+    // hitbox. His body reaches much further in front of his hips than behind (most of all on all fours), so without
+    // this the hitbox sat over his back half. Eases over a few ticks as he changes form. Lying down to sleep keeps
+    // the offset he had, so he doesn't slide along the ground as he goes down (the wide sleeping hitbox still
+    // covers him).
+    private float bodyOffset, bodyOffsetO;
+    private static final float[] LOW_BODY_OFFSET = {0.0F, 0.45F, 0.42F, 0.27F};
+
+    private void tickBodyOffset() {
+        float target;
+        if (this.isLow()) {
+            target = LOW_BODY_OFFSET[this.getLow()];
+        } else {
+            target = this.isOnFours() ? 0.38F : 0.15F;
+        }
+        this.bodyOffsetO = this.bodyOffset;
+        this.bodyOffset += (target - this.bodyOffset) * 0.15F;
+    }
+
+    public float getBodyOffset(float pPartialTick) {
+        return Mth.lerp(pPartialTick, this.bodyOffsetO, this.bodyOffset);
+    }
+
+    // Client: how brightly its eyes glow (1 awake); asleep they dim down, easing over a second or two.
+    private static final float SLEEPING_EYE_GLOW = 0.3F;
+    private float eyeGlow = 1.0F, eyeGlowO = 1.0F;
+
+    private void tickEyeGlow() {
+        float target = this.entityData.get(SLEEPING) ? SLEEPING_EYE_GLOW : 1.0F;
+        this.eyeGlowO = this.eyeGlow;
+        this.eyeGlow += (target - this.eyeGlow) * 0.08F;
+    }
+
+    public float getEyeGlow(float pPartialTick) {
+        return Mth.lerp(pPartialTick, this.eyeGlowO, this.eyeGlow);
     }
 
     // ---------------------------------------------------------------- sight, getting stuck, chase screams (server side)
@@ -682,12 +827,14 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     }
 
     // Trying to get somewhere (a path, or a target out of reach) and not getting half a block closer for 0.8
-    // seconds: it gets lower to get under or through whatever is in the way, from standing to all fours, and
-    // from all fours onto its belly. Not while it's climbing.
+    // seconds: it gets lower to get under or through whatever is in the way, from standing to all fours, from all
+    // fours (or stooping) to creeping, and from creeping onto its belly. Not while it's climbing. (Most of the
+    // time it already knows it has to get low before it gets stuck: see tickRoute.)
     private void tickStuck() {
         LivingEntity target = this.getTarget();
         boolean wantsToMove = this.getNavigation().isInProgress() || target != null && !this.isWithinMeleeAttackRange(target);
-        if (!wantsToMove || this.isProne() || this.sleeping || this.holdTicks > 0 || this.windupTicks > 0 || this.circleTicks > 0
+        // (not while it has just got down into the form it planned to squeeze through with: give it time to line up)
+        if (!wantsToMove || this.getLow() == ON_BELLY || this.squeezeCommitTicks > 0 || this.sleeping || this.holdTicks > 0 || this.windupTicks > 0 || this.circleTicks > 0
                 || this.isClimbing() || this.isInWater()) {
             this.stuckTicks = 0;
             this.stuckFrom = null;
@@ -701,42 +848,79 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         if (++this.stuckTicks >= STUCK_TICKS) {
             this.stuckTicks = 0;
             this.stuckFrom = null;
-            if (!this.isOnFours()) {
+            if (!this.isOnFours() && !this.isLow()) {
                 this.entityData.set(ON_FOURS, true);
                 this.holdTicks += STANCE_CHANGE_TICKS;
             } else {
-                this.entityData.set(PRONE, true);
-                this.holdTicks += PRONE_CHANGE_TICKS;
+                this.getDownTo(this.getLow() == CREEPING ? ON_BELLY : CREEPING);
             }
         }
     }
 
-    // On its belly: gets back up onto all fours once there has been room for 3 seconds, or straight away when
-    // whoever it's after is close and has room around them too (if they're in a low tunnel, it stays down).
-    private void tickProne() {
-        if (!this.isProne() || this.holdTicks > 0 || this.isClimbing()) {
+    // In a low form: rises to the tallest form there's room for where it is. Back up onto all fours once there has
+    // been room for 3 seconds, or straight away when whoever it's after is close and has room around them too (if
+    // they're in a tunnel, it stays down); from its belly or creeping up to a taller low form after half a second
+    // (on its belly in a 2-high tunnel it creeps, in a 3-high one it stoops).
+    private void tickLow() {
+        int low = this.getLow();
+        if (low == NOT_LOW || this.holdTicks > 0 || this.isClimbing() || this.squeezeCommitTicks > 0) {
             this.roomTicks = 0;
             return;
         }
         LivingEntity target = this.getTarget();
-        boolean targetHasRoom = target == null || this.roomFor(ON_FOURS_SIZE, target.position());
-        this.roomTicks = this.roomFor(ON_FOURS_SIZE, this.position()) && targetHasRoom ? this.roomTicks + 1 : 0;
-        boolean close = target != null && this.distanceToSqr(target) < 16.0;
-        if (this.roomTicks >= PRONE_GET_UP_TICKS || close && this.roomTicks >= 2) {
+        int best = low;
+        if (this.roomFor(ON_FOURS_SIZE, this.position()) && (target == null || this.roomFor(ON_FOURS_SIZE, target.position()))) {
+            best = NOT_LOW;
+        } else {
+            for (int form = STOOPING; form < low; form++) {
+                if (this.roomFor(LOW_SIZES[form], this.position())) {
+                    best = form;
+                    break;
+                }
+            }
+        }
+        if (best != this.risingTo) {
+            this.risingTo = best;
             this.roomTicks = 0;
-            this.entityData.set(PRONE, false);
-            this.holdTicks += PRONE_CHANGE_TICKS;
+        }
+        if (best == low) {
+            return;
+        }
+        boolean close = target != null && this.distanceToSqr(target) < 16.0;
+        int needed = best != NOT_LOW ? RISE_TICKS : close ? 2 : PRONE_GET_UP_TICKS;
+        if (++this.roomTicks >= needed) {
+            this.roomTicks = 0;
+            this.entityData.set(LOW, best);
+            this.holdTicks += LOW_CHANGE_TICKS;
         }
     }
 
+    // Down into a low form (from standing or all fours, or a taller low form). It stays down at least a few seconds.
+    private void getDownTo(int pForm) {
+        this.entityData.set(ON_FOURS, true);        // (getting back up from any of them, it's on all fours)
+        this.entityData.set(LOW, pForm);
+        this.holdTicks += LOW_CHANGE_TICKS;
+        this.squeezeCommitTicks = SQUEEZE_COMMIT_TICKS;
+    }
+
+    public int getLow() {
+        return this.entityData.get(LOW);
+    }
+
+    public boolean isLow() {
+        return this.getLow() != NOT_LOW;
+    }
+
     public boolean isProne() {
-        return this.entityData.get(PRONE);
+        return this.getLow() == ON_BELLY;
     }
 
     // Climbs (like a spider) while it's against a wall, or in a shaft, trying to get to something above it.
     private void tickClimb() {
         boolean climb = false;
-        if (!this.sleeping && this.holdTicks == 0 && this.windupTicks == 0) {
+        // (never on its belly: its climbing poses are for standing, and the low gaps it crawls through would have it
+        // climbing into the ceiling; nor while it's heading for a gap to squeeze through instead of going over)
+        if (!this.sleeping && this.holdTicks == 0 && this.windupTicks == 0 && !this.isLow() && this.squeezeAt == null) {
             LivingEntity target = this.getTarget();
             BlockPos goal = target != null ? target.blockPosition() : this.getNavigation().getTargetPos();
             boolean wantsUp = goal != null && goal.getY() > this.getY() + 1.0;
@@ -786,6 +970,159 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         }
     }
 
+    // ---------------------------------------------------------------- finding a way (server side)
+    // Once a second while it's after someone it can't reach yet: is there a way at its size? If not, is there one
+    // stooping, creeping or on its belly (the tallest that gets there; then it heads for where it has to get down,
+    // see SqueezeGoal)? If none, after a while it gives up on them.
+    private void tickRoute() {
+        LivingEntity target = this.getTarget();
+        if (target == null || this.sleeping || this.isClimbing() || this.isWithinMeleeAttackRange(target)) {
+            this.squeezeAt = null;
+            this.noWayTicks = 0;
+            return;
+        }
+        if (this.tickCount % ROUTE_INTERVAL != 0 || !this.onGround()) {
+            return;
+        }
+        Path path = this.getNavigation().createPath(target, 1);
+        if (path != null && path.canReach()) {
+            this.squeezeAt = null;
+            this.noWayTicks = 0;
+            return;
+        }
+        for (int form = this.getLow() + 1; form <= ON_BELLY; form++) {   // the tallest low form that gets there
+            Path low = this.lowNavigations[form].createPath(target, 1);
+            if (low != null && low.canReach()) {
+                this.squeezeAt = this.whereToGetDown(low);
+                this.squeezeForm = form;
+                this.noWayTicks = 0;
+                return;
+            }
+        }
+        this.squeezeAt = null;
+        this.noWayTicks += ROUTE_INTERVAL;
+        if (this.noWayTicks >= GIVE_UP_TICKS) {
+            this.noWayTicks = 0;
+            if (target instanceof Player player) {
+                this.leftBe.put(player.getUUID(), this.tickCount + LEAVE_BE_TICKS);
+            }
+            this.setTarget(null);                   // no way to them: it goes back to roaming
+        }
+    }
+
+    // The last spot along a low form's path where it still fits as it is (just before the gap).
+    private BlockPos whereToGetDown(Path pLow) {
+        EntityDimensions size = this.getDimensions(this.getPose());
+        for (int i = 0; i < pLow.getNodeCount(); i++) {
+            BlockPos node = pLow.getNode(i).asBlockPos();
+            if (!this.roomFor(size, Vec3.atBottomCenterOf(node))) {
+                return i > 0 ? pLow.getNode(i - 1).asBlockPos() : this.blockPosition();
+            }
+        }
+        return this.blockPosition();
+    }
+
+    // At the gap: down into the low form that gets it through.
+    private void getDownToSqueeze() {
+        this.getNavigation().stop();
+        this.getDownTo(this.squeezeForm);
+        this.squeezeAt = null;
+    }
+
+    private boolean leavingBe(Player pPlayer) {
+        Integer until = this.leftBe.get(pPlayer.getUUID());
+        return until != null && this.tickCount < until;
+    }
+
+    // ---------------------------------------------------------------- knocking (server side)
+    private boolean canKnock() {
+        return this.isCalm() && this.knockDoor == null && this.lingerTicks == 0 && this.onGround() && !this.isInWater();
+    }
+
+    // The nearest closed door within reach that it hasn't knocked on lately (its lower half).
+    @Nullable
+    private BlockPos findDoor() {
+        BlockPos here = this.blockPosition();
+        long now = this.level().getGameTime();
+        BlockPos best = null;
+        double bestDistance = KNOCK_RANGE * KNOCK_RANGE + 1;
+        for (BlockPos p : BlockPos.betweenClosed(here.offset(-KNOCK_RANGE, -2, -KNOCK_RANGE), here.offset(KNOCK_RANGE, 2, KNOCK_RANGE))) {
+            BlockState state = this.level().getBlockState(p);
+            if (!(state.getBlock() instanceof DoorBlock) || state.getValue(DoorBlock.HALF) != DoubleBlockHalf.LOWER
+                    || state.getValue(DoorBlock.OPEN)) {
+                continue;
+            }
+            Long last = this.knockedDoors.get(p);
+            double distance = p.distToCenterSqr(this.position());
+            if ((last == null || now - last >= SAME_DOOR_COOLDOWN) && distance < bestDistance) {
+                best = p.immutable();
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    private boolean isClosedDoor(BlockPos pPos) {
+        BlockState state = this.level().getBlockState(pPos);
+        return state.getBlock() instanceof DoorBlock && !state.getValue(DoorBlock.OPEN);
+    }
+
+    // Where to stand to knock: in front of the door, on its own side of it.
+    private Vec3 doorStep(BlockPos pDoor) {
+        Direction facing = this.level().getBlockState(pDoor).getValue(DoorBlock.FACING);
+        BlockPos a = pDoor.relative(facing), b = pDoor.relative(facing.getOpposite());
+        BlockPos near = a.distToCenterSqr(this.position()) <= b.distToCenterSqr(this.position()) ? a : b;
+        return Vec3.atBottomCenterOf(near);
+    }
+
+    // Close enough to knock: right up against the door (allowing for its width).
+    private boolean atDoor(BlockPos pDoor) {
+        double dx = pDoor.getX() + 0.5 - this.getX(), dz = pDoor.getZ() + 0.5 - this.getZ();
+        double reach = 1.0 + this.getBbWidth() / 2.0 + 0.5;
+        return dx * dx + dz * dz < reach * reach;
+    }
+
+    private void startKnock(BlockPos pDoor) {
+        this.knockDoor = pDoor;
+        this.knockTicks = 0;
+        this.knockCooldown = KNOCK_COOLDOWN;
+        this.knockedDoors.put(pDoor, this.level().getGameTime());
+        this.getNavigation().stop();
+        float yaw = (float) (Mth.atan2(pDoor.getZ() + 0.5 - this.getZ(), pDoor.getX() + 0.5 - this.getX()) * Mth.RAD_TO_DEG) - 90.0F;
+        this.setYRot(yaw);
+        this.yBodyRot = yaw;
+        this.yHeadRot = yaw;
+        String name = this.isOnFours() ? "knock_on_fours" : "knock_standing";
+        this.playAction(name);
+        this.holdTicks = Math.max(this.holdTicks, Mth.ceil(ACTION_SECONDS[ACTIONS.indexOf(name)] * 20));
+    }
+
+    // The knock's sounds, in step with its animation: three raps on the door, then (placeholder for now) its voice
+    // through the door. Cut short if something sets it off.
+    private void tickKnock() {
+        if (this.knockDoor == null) {
+            return;
+        }
+        if (this.getTarget() != null || this.isFleeing() || this.sleeping || this.leavingAtDawn || this.windupTicks > 0) {
+            this.knockDoor = null;
+            return;
+        }
+        this.knockTicks++;
+        BlockPos door = this.knockDoor;
+        for (int rap : KNOCK_RAP_TICKS) {
+            if (this.knockTicks == rap) {
+                this.level().playSound(null, door, ModSounds.skinwalker_knock.get(), SoundSource.HOSTILE, 1.0F,
+                        0.95F + this.random.nextFloat() * 0.1F);
+            }
+        }
+        if (this.knockTicks == KNOCK_VOICE_TICK) {
+            this.level().playSound(null, door, ModSounds.skinwalker_door_voice.get(), SoundSource.HOSTILE, 1.0F, 1.0F);
+            this.knockDoor = null;
+            this.lingerDoor = door;
+            this.lingerTicks = Mth.nextInt(this.random, LINGER_MIN_TICKS, LINGER_MAX_TICKS);
+        }
+    }
+
     // ---------------------------------------------------------------- /skinwalker sleep (testing)
     // Lies down after 5 more seconds of whatever it's doing (see SkinwalkerCommand). Not while it's leaving at
     // sunrise.
@@ -799,11 +1136,15 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         if (this.sleeping || this.leavingAtDawn) {
             return;
         }
-        if (this.isProne()) {
+        if (!this.canLieDownHere()) {
+            this.sleepyTicks = 10;                  // still swimming or in the air: tries again once it's out
+            return;
+        }
+        if (this.isLow()) {
             // gets up onto all fours first (once there's room), then lies down
             if (this.holdTicks == 0 && this.roomFor(ON_FOURS_SIZE, this.position())) {
-                this.entityData.set(PRONE, false);
-                this.holdTicks = PRONE_CHANGE_TICKS;
+                this.entityData.set(LOW, NOT_LOW);
+                this.holdTicks = LOW_CHANGE_TICKS;
             }
             this.sleepyTicks = this.holdTicks + 1;
             return;
@@ -891,6 +1232,139 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
             LivingEntity target = self.getTarget() != null ? self.getTarget() : self.getLastHurtByMob();
             if (target != null) {
                 self.getLookControl().setLookAt(target, 30.0F, 30.0F);
+            }
+        }
+    }
+
+    // Heading for the gap it has to squeeze through (see tickRoute), then getting down there.
+    private class SqueezeGoal extends Goal {
+        private int repath;
+
+        SqueezeGoal() {
+            this.setFlags(EnumSet.of(Goal.Flag.MOVE));
+        }
+
+        @Override
+        public boolean canUse() {
+            SkinwalkerEntity self = SkinwalkerEntity.this;
+            return self.squeezeAt != null && self.getLow() < self.squeezeForm && self.getTarget() != null;
+        }
+
+        @Override
+        public void start() {
+            this.repath = 0;
+        }
+
+        @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
+        public void tick() {
+            SkinwalkerEntity self = SkinwalkerEntity.this;
+            BlockPos at = self.squeezeAt;
+            if (at == null) {
+                return;
+            }
+            Vec3 spot = Vec3.atBottomCenterOf(at);
+            double dx = spot.x - self.getX(), dz = spot.z - self.getZ();
+            boolean there = dx * dx + dz * dz < 1.0 || self.getNavigation().isDone() && dx * dx + dz * dz < 4.0;
+            if (there) {
+                self.getNavigation().stop();
+                self.getDownToSqueeze();
+            } else if (--this.repath <= 0) {
+                this.repath = 10;
+                self.getNavigation().moveTo(spot.x, spot.y, spot.z, 1.0);
+            }
+        }
+    }
+
+    // After knocking (once it's back up): stays by the door, staring at it.
+    private class LingerGoal extends Goal {
+        LingerGoal() {
+            this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            SkinwalkerEntity self = SkinwalkerEntity.this;
+            return self.lingerTicks > 0 && self.lingerDoor != null && self.holdTicks == 0;
+        }
+
+        @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
+        public void tick() {
+            SkinwalkerEntity self = SkinwalkerEntity.this;
+            BlockPos door = self.lingerDoor;
+            if (door != null) {
+                self.getNavigation().stop();
+                self.getLookControl().setLookAt(door.getX() + 0.5, door.getY() + 1.0, door.getZ() + 0.5);
+            }
+        }
+    }
+
+    // Roaming, it goes up to a closed door nearby and knocks (see startKnock and tickKnock).
+    private class KnockGoal extends Goal {
+        @Nullable
+        private BlockPos door;
+        private int ticks;
+
+        KnockGoal() {
+            this.setFlags(EnumSet.of(Goal.Flag.MOVE, Goal.Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            SkinwalkerEntity self = SkinwalkerEntity.this;
+            if (self.knockCooldown > 0 || self.tickCount % 20 != 0 || !self.canKnock()) {
+                return false;
+            }
+            this.door = self.findDoor();
+            return this.door != null;
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            SkinwalkerEntity self = SkinwalkerEntity.this;
+            return this.door != null && self.canKnock() && self.isClosedDoor(this.door) && this.ticks < KNOCK_APPROACH_TICKS;
+        }
+
+        @Override
+        public void start() {
+            this.ticks = 0;
+        }
+
+        @Override
+        public void stop() {
+            SkinwalkerEntity self = SkinwalkerEntity.this;
+            if (this.door != null && self.knockDoor == null) {
+                self.knockedDoors.put(this.door, self.level().getGameTime());     // couldn't get to it: leaves it be
+            }
+            this.door = null;
+        }
+
+        @Override
+        public boolean requiresUpdateEveryTick() {
+            return true;
+        }
+
+        @Override
+        public void tick() {
+            SkinwalkerEntity self = SkinwalkerEntity.this;
+            if (this.door == null) {
+                return;
+            }
+            if (self.atDoor(this.door)) {
+                self.startKnock(this.door);
+                this.door = null;
+            } else if (this.ticks++ % 20 == 0) {
+                Vec3 step = self.doorStep(this.door);
+                self.getNavigation().moveTo(step.x, step.y, step.z, 0.8);
             }
         }
     }
@@ -1074,6 +1548,16 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         return this.geoCache;
     }
 
+    // Client: the form it's in, as the animations name it.
+    private String formName() {
+        return switch (this.getLow()) {
+            case STOOPING -> "stoop";
+            case CREEPING -> "creep";
+            case ON_BELLY -> "prone";
+            default -> this.isOnFours() ? "crawl" : "stand";
+        };
+    }
+
     // Client: whether the head may turn toward what it's looking at (not while asleep, lying down or getting up).
     public boolean headTracks() {
         return !this.entityData.get(SLEEPING) && (this.shownAction == null
@@ -1092,10 +1576,10 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         boolean fours = this.isOnFours();
         String stance = fours ? "_on_fours" : "_standing";
         state.setControllerSpeed(1.0F);
-        if (!this.stanceSeen) {
-            this.stanceSeen = true;
-            this.shownOnFours = fours;
-            this.shownProne = this.isProne();
+        String form = this.formName();
+        if (!this.formSeen) {
+            this.formSeen = true;
+            this.shownForm = form;
         }
         if (this.isDeadOrDying()) {
             return state.setAndContinue(hold((this.entityData.get(DUST_DEATH) ? "dust_death" : "death") + stance));
@@ -1119,12 +1603,12 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
                 return state.setAndContinue(hold(this.shownAction));
             }
             this.shownAction = null;
-            this.shownOnFours = fours;               // waking up already ends in its new form
+            this.shownForm = form;                   // waking up already ends in its new form
         }
         if (this.entityData.get(SLEEPING)) {
             return state.setAndContinue(loop("sleep" + stance));
         }
-        if (this.isInWater()) {
+        if (this.isInDeepWater()) {
             return state.setAndContinue(loop("swim"));
         }
         double climbSpeed = this.getY() - this.yo;
@@ -1133,29 +1617,32 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
             state.setControllerSpeed((float) Mth.clamp(Math.abs(climbSpeed) / CLIMB_SPEED, 0.6, 2.0));
             return state.setAndContinue(loop(climbSpeed > 0 ? "climb_up" : "climb_down"));
         }
-        if (fours != this.shownOnFours) {
-            this.shownOnFours = fours;
-            this.stanceChangedAt = this.tickCount;
+        // changing form: from standing, all fours or a low form to another (each pair has its own animation)
+        if (!form.equals(this.shownForm)) {
+            this.formFrom = this.shownForm;
+            this.shownForm = form;
+            this.formChangedAt = this.tickCount;
             this.idleFlavor = null;
         }
-        if (this.tickCount - this.stanceChangedAt < STANCE_CHANGE_TICKS) {
-            return state.setAndContinue(once(fours ? "stand_to_crawl" : "crawl_to_stand"));
-        }
-        boolean prone = this.isProne();
-        if (prone != this.shownProne) {
-            this.shownProne = prone;
-            this.proneChangedAt = this.tickCount;
-            this.idleFlavor = null;
-        }
-        if (this.tickCount - this.proneChangedAt < PRONE_CHANGE_TICKS) {
-            return state.setAndContinue(once(prone ? "crawl_to_prone" : "prone_to_crawl"));
+        boolean upOrDown = (this.formFrom + form).equals("standcrawl") || (this.formFrom + form).equals("crawlstand");
+        if (this.tickCount - this.formChangedAt < (upOrDown ? STANCE_CHANGE_TICKS : LOW_CHANGE_TICKS)) {
+            return state.setAndContinue(once(this.formFrom + "_to_" + form));
         }
         double speed = Math.sqrt(Mth.square(this.getX() - this.xo) + Mth.square(this.getZ() - this.zo));
-        if (prone) {
-            // crawls on its belly; lying still, it holds the crawl wherever it stopped
+        if (this.isLow()) {
             this.idleFlavor = null;
-            state.setControllerSpeed(speed > 0.01 ? (float) Mth.clamp(speed / CRAWL_SPEED, 0.6, 2.0) : 0.0F);
-            return state.setAndContinue(loop("crawl_prone"));
+            if (this.getLow() == ON_BELLY) {
+                // drags itself along on its belly; lying still, it holds the crawl wherever it stopped
+                state.setControllerSpeed(speed > 0.005 ? (float) Mth.clamp(speed / CRAWL_SPEED, 0.3, 2.5) : 0.0F);
+                return state.setAndContinue(loop("crawl_prone"));
+            }
+            String move = this.getLow() == CREEPING ? "creep" : "stoop";
+            if (speed > 0.01) {
+                double animSpeed = this.getLow() == CREEPING ? CREEP_SPEED : STOOP_SPEED;
+                state.setControllerSpeed((float) Mth.clamp(speed / animSpeed, 0.5, 2.5));
+                return state.setAndContinue(loop(move));
+            }
+            return state.setAndContinue(loop("rest_" + move));
         }
         if (speed > 0.02) {
             this.idleFlavor = null;
@@ -1163,7 +1650,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
             boolean running = this.entityData.get(RUNNING) || this.isAggressive();
             String gait = fleeing ? "flee" : running ? "run" : "walk";
             double animSpeed = fleeing ? FLEE_SPEED_ANIM : running ? RUN_SPEED : WALK_SPEED;
-            state.setControllerSpeed((float) Mth.clamp(speed / animSpeed, 0.6, 2.0));
+            state.setControllerSpeed((float) Mth.clamp(speed / animSpeed, 0.4, 2.0));
             return state.setAndContinue(loop(gait + stance));
         }
         if (this.entityData.get(ALERT)) {
@@ -1184,7 +1671,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
             this.idleFlavor = null;
         }
         boolean still = Math.abs(this.getX() - this.xo) + Math.abs(this.getZ() - this.zo) < 0.01;
-        boolean busy = this.entityData.get(SLEEPING) || this.entityData.get(ALERT) || this.shownAction != null || this.isProne();
+        boolean busy = this.entityData.get(SLEEPING) || this.entityData.get(ALERT) || this.shownAction != null || this.isLow();
         if (this.idleFlavor == null && still && !busy && this.isAlive() && this.random.nextInt(IDLE_FLAVOR_CHANCE) == 0) {
             float seconds;
             switch (this.random.nextInt(3)) {
@@ -1208,14 +1695,28 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         return HOLD.computeIfAbsent(name, n -> RawAnimation.begin().thenPlayAndHold(n));
     }
 
+    // ---------------------------------------------------------------- water
+    // How deep water has to be before it swims (FloatGoal) instead of wading: vanilla's 0.4 blocks is for mobs
+    // the size of a player, and made it bob up and down on the spot in any puddle. About half its height, at most
+    // 1.2 blocks (so standing, on all fours or on its belly it wades through shallow water and swims in deep).
+    @Override
+    public double getFluidJumpThreshold() {
+        return Math.min(1.2, this.getBbHeight() * 0.45);
+    }
+
+    // Deep enough to swim in (see getFluidJumpThreshold).
+    private boolean isInDeepWater() {
+        return this.isInWater() && this.getFluidHeight(FluidTags.WATER) > this.getFluidJumpThreshold();
+    }
+
     // ---------------------------------------------------------------- hitbox
     @Override
     protected EntityDimensions getDefaultDimensions(Pose pPose) {
         if (this.entityData.get(SLEEPING)) {
             return ASLEEP_SIZE;
         }
-        if (this.isProne()) {
-            return PRONE_SIZE;
+        if (this.isLow()) {
+            return LOW_SIZES[this.getLow()];
         }
         return this.isOnFours() ? ON_FOURS_SIZE : STANDING_SIZE;
     }
@@ -1223,7 +1724,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     @Override
     public void onSyncedDataUpdated(EntityDataAccessor<?> pKey) {
         super.onSyncedDataUpdated(pKey);
-        if (ON_FOURS.equals(pKey) || SLEEPING.equals(pKey) || PRONE.equals(pKey)) {
+        if (ON_FOURS.equals(pKey) || SLEEPING.equals(pKey) || LOW.equals(pKey)) {
             this.refreshDimensions();
         }
     }
@@ -1265,7 +1766,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         pCompound.putInt("WindupTicks", this.windupTicks);
         pCompound.putInt("RageTicks", this.rageTicks);
         pCompound.putBoolean("ReactedToHit", this.reactedToHit);
-        pCompound.putBoolean("Prone", this.isProne());
+        pCompound.putInt("Low", this.getLow());
     }
 
     @Override
@@ -1286,6 +1787,34 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         this.windupTicks = pCompound.getInt("WindupTicks");
         this.rageTicks = pCompound.getInt("RageTicks");
         this.reactedToHit = pCompound.getBoolean("ReactedToHit");
-        this.entityData.set(PRONE, pCompound.getBoolean("Prone"));
+        // (saved before the stooping and creeping forms: "Prone", on its belly or not)
+        this.entityData.set(LOW, pCompound.contains("Low") ? Mth.clamp(pCompound.getInt("Low"), NOT_LOW, ON_BELLY)
+                : pCompound.getBoolean("Prone") ? ON_BELLY : NOT_LOW);
+    }
+
+    // Plans paths as if it were 1 block wide and pHeight blocks high (a low form), to find out whether a gap too
+    // small for it as it is would get it to where it's going. Only used to plan, never to move.
+    private static class LowNavigation extends GroundPathNavigation {
+        private final int height;
+
+        LowNavigation(Mob pMob, Level pLevel, int pHeight) {
+            super(pMob, pLevel);
+            this.height = pHeight;
+        }
+
+        @Override
+        protected PathFinder createPathFinder(int pMaxVisitedNodes) {
+            this.nodeEvaluator = new WalkNodeEvaluator() {
+                @Override
+                public void prepare(PathNavigationRegion pRegion, Mob pMob) {
+                    super.prepare(pRegion, pMob);
+                    this.entityWidth = 1;
+                    this.entityHeight = LowNavigation.this.height;      // (read here: set after the constructor)
+                    this.entityDepth = 1;
+                }
+            };
+            this.nodeEvaluator.setCanPassDoors(true);
+            return new PathFinder(this.nodeEvaluator, pMaxVisitedNodes);
+        }
     }
 }

@@ -79,6 +79,8 @@ public class ModItems {
             () -> new ForgeSpawnEggItem(ModEntities.frank, 0x4A3728, 0x9C2A2A, new Item.Properties()));
     public static final RegistryObject<Item> sweet_berry_bush = ITEMS.register("sweet_berry_bush",
             () -> new BerryBushItem(new Item.Properties()));
+    public static final RegistryObject<Item> berry_pile = ITEMS.register("berry_pile",
+            () -> new Item(new Item.Properties()));
     public static final RegistryObject<Item> placeholderfood = ITEMS.register("placeholderfood",
         () -> new Item(new Item.Properties().food(ModFoodProperties.placeholderfood)) {
             @Override

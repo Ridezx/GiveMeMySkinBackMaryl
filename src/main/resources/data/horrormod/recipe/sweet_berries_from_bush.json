@@ -1,0 +1,16 @@
+{
+  "type": "horrormod:tool_damaging_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "horrormod:sweet_berry_bush"
+    },
+    {
+      "item": "horrormod:scalpel"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "horrormod:berry_pile"
+  }
+}

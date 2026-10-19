@@ -14,6 +14,8 @@ public class ModLootModifiers {
 
     public static final RegistryObject<MapCodec<? extends IGlobalLootModifier>> add_item =
             LOOT_MODIFIER_SERIALIZERS.register("add_item", () -> AddItemModifier.CODEC);
+    public static final RegistryObject<MapCodec<? extends IGlobalLootModifier>> limit_item =
+            LOOT_MODIFIER_SERIALIZERS.register("limit_item", () -> LimitItemModifier.CODEC);
 
     public static void register(IEventBus eventBus) {
         LOOT_MODIFIER_SERIALIZERS.register(eventBus);

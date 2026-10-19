@@ -21,6 +21,8 @@ import net.ridez.horror.entity.ModEntities;
 import net.ridez.horror.fluid.ModFluids;
 import net.ridez.horror.item.ModCreativeModeTabs;
 import net.ridez.horror.item.ModItems;
+import net.ridez.horror.network.ModNetwork;
+import net.ridez.horror.sound.ModSounds;
 import net.ridez.horror.loot.ModLootModifiers;
 import net.ridez.horror.recipe.ModRecipes;
 import net.ridez.horror.worldgen.ModFeatures;
@@ -45,12 +47,14 @@ public class HorrorMod
 
 
         ModItems.register(modEventBus);
+        ModNetwork.register();
         ModBlocks.register(modEventBus);
         ModLootModifiers.register(modEventBus);
         ModRecipes.register(modEventBus);
         ModEntities.register(modEventBus);
         ModFluids.register(modEventBus);
         ModFeatures.register(modEventBus);
+        ModSounds.register(modEventBus);
 
         modEventBus.addListener(this::addCreative);
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
@@ -76,6 +80,7 @@ public class HorrorMod
             event.accept(ModBlocks.veinseep);
             event.accept(ModBlocks.veinseep_deepslate);
             event.accept(ModItems.sweet_berry_bush);
+            event.accept(ModItems.berry_pile);
             event.accept(ModItems.salt);
             event.accept(ModItems.aspiraton);
             event.accept(ModItems.aspiraton_drop);

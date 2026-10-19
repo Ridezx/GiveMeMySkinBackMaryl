@@ -1,6 +1,8 @@
 package net.ridez.horror.client;
 
+import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraft.Util;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.Minecraft;
@@ -19,6 +21,7 @@ import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.client.gui.ModListScreen;
@@ -30,15 +33,29 @@ import net.ridez.horror.HorrorMod;
 import org.jetbrains.annotations.Nullable;
 
 // The mod's title screen, shown instead of the vanilla one: a dark screen with the Minecraft logo and splash text
-// at the top left, the menu as dark red bars along the bottom left corner, the mod's name faded into the bottom
-// middle, the support links at the bottom right, and the Skinwalker leaning out from behind the right edge of the
-// screen, watching. The art is drawn by art/tools/title_screen_art.py (textures/gui/title/).
+// at the top left, the menu as smears of blood along the bottom left corner (the one under the pointer flows), the
+// mod's name in the bottom middle, the support links at the bottom right, and Odie standing toward the right, as
+// tall as the screen, tipping his hat. The art is drawn by art/tools/title_screen_art.py (textures/gui/title/).
 @Mod.EventBusSubscriber(modid = HorrorMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class HorrorTitleScreen extends Screen {
     private static final ResourceLocation NAME = ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "textures/gui/title/name.png");
     private static final int NAME_W = 1839, NAME_H = 125;
-    private static final ResourceLocation SKINWALKER = ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "textures/gui/title/skinwalker.png");
-    private static final int SKINWALKER_W = 1040, SKINWALKER_H = 1456;
+    private static final ResourceLocation ODIE = ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "textures/gui/title/odie.png");
+    private static final int ODIE_W = 1040, ODIE_H = 1456;
+    // Odie stands this far across the screen (his middle)
+    private static final float ODIE_CENTRE = 0.76F;
+    // The menu buttons' blood smears, one per button (all drawn by art/tools/title_screen_art.py): each texture is a
+    // strip of frames, first the hover flowing in (frame 0 at rest), then a wet sheen gliding along it, looped.
+    private static final ResourceLocation[] BLOOD = new ResourceLocation[5];
+    static {
+        for (int i = 0; i < BLOOD.length; i++) {
+            BLOOD[i] = ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "textures/gui/title/blood_" + i + ".png");
+        }
+    }
+    private static final int BLOOD_W = 450, BLOOD_H = 60, BLOOD_FLOW_FRAMES = 8, BLOOD_SHEEN_FRAMES = 12;
+    // how long the blood takes to flow in and to settle back (ms), and each frame of the sheen
+    private static final float FLOW_IN_MS = 400.0F, FLOW_OUT_MS = 300.0F;
+    private static final int SHEEN_FRAME_MS = 100;
     // Support links. Empty until they exist: the buttons show but say the link is coming soon.
     private static final String DISCORD_URL = "";
     private static final String KOFI_URL = "";
@@ -85,8 +102,58 @@ public class HorrorTitleScreen extends Screen {
         return false;
     }
 
+    // ---------------------------------------------------------------- the same look at every GUI scale
+    // The screen is laid out and drawn as if the GUI scale were Auto for this window, whatever it's set to, so the
+    // logo, menu and text keep their size against the art. layoutScale is how much bigger that is than
+    // the GUI scale in use; drawing is scaled up by it and mouse positions scaled down to match.
+    private float layoutScale = 1.0F;
+
+    private void fitToAutoScale() {
+        Window window = this.minecraft.getWindow();
+        int auto = window.calculateScale(0, this.minecraft.isEnforceUnicode());
+        this.layoutScale = (float) (auto / window.getGuiScale());
+        this.width = Mth.ceil(window.getWidth() / (float) auto);
+        this.height = Mth.ceil(window.getHeight() / (float) auto);
+    }
+
+    @Override
+    public void render(GuiGraphics pGuiGraphics, int pMouseX, int pMouseY, float pPartialTick) {
+        pGuiGraphics.pose().pushPose();
+        pGuiGraphics.pose().scale(this.layoutScale, this.layoutScale, 1.0F);
+        this.renderScaled(pGuiGraphics, (int) (pMouseX / this.layoutScale), (int) (pMouseY / this.layoutScale), pPartialTick);
+        pGuiGraphics.pose().popPose();
+    }
+
+    @Override
+    public boolean mouseClicked(double pMouseX, double pMouseY, int pButton) {
+        return super.mouseClicked(pMouseX / this.layoutScale, pMouseY / this.layoutScale, pButton);
+    }
+
+    @Override
+    public boolean mouseReleased(double pMouseX, double pMouseY, int pButton) {
+        return super.mouseReleased(pMouseX / this.layoutScale, pMouseY / this.layoutScale, pButton);
+    }
+
+    @Override
+    public boolean mouseDragged(double pMouseX, double pMouseY, int pButton, double pDragX, double pDragY) {
+        return super.mouseDragged(pMouseX / this.layoutScale, pMouseY / this.layoutScale, pButton,
+                pDragX / this.layoutScale, pDragY / this.layoutScale);
+    }
+
+    @Override
+    public boolean mouseScrolled(double pMouseX, double pMouseY, double pScrollX, double pScrollY) {
+        return super.mouseScrolled(pMouseX / this.layoutScale, pMouseY / this.layoutScale, pScrollX, pScrollY);
+    }
+
+    @Override
+    public void mouseMoved(double pMouseX, double pMouseY) {
+        super.mouseMoved(pMouseX / this.layoutScale, pMouseY / this.layoutScale);
+    }
+
+    // ---------------------------------------------------------------- layout and drawing (in Auto-scale units)
     @Override
     protected void init() {
+        this.fitToAutoScale();
         if (this.splash == null) {
             String text = ModSplashes.pick();
             this.splash = text != null ? new SplashRenderer(text) : null;
@@ -94,12 +161,12 @@ public class HorrorTitleScreen extends Screen {
         // the menu: bars stacked up from the bottom left corner, the first one on top
         Component multiplayerDisabled = this.minecraft.allowsMultiplayer() ? null : Component.translatable("title.multiplayer.disabled");
         MenuButton[] menu = {
-                new MenuButton(Component.translatable("menu.singleplayer"), b -> this.minecraft.setScreen(new SelectWorldScreen(this))),
-                new MenuButton(Component.translatable("menu.multiplayer"), b -> this.minecraft.setScreen(
+                new MenuButton(0, Component.translatable("menu.singleplayer"), b -> this.minecraft.setScreen(new SelectWorldScreen(this))),
+                new MenuButton(1, Component.translatable("menu.multiplayer"), b -> this.minecraft.setScreen(
                         this.minecraft.options.skipMultiplayerWarning ? new JoinMultiplayerScreen(this) : new SafetyScreen(this))),
-                new MenuButton(Component.translatable("fml.menu.mods"), b -> this.minecraft.setScreen(new ModListScreen(this))),
-                new MenuButton(Component.translatable("menu.options"), b -> this.minecraft.setScreen(new OptionsScreen(this, this.minecraft.options))),
-                new MenuButton(Component.translatable("menu.quit"), b -> this.minecraft.stop())};
+                new MenuButton(2, Component.translatable("fml.menu.mods"), b -> this.minecraft.setScreen(new ModListScreen(this))),
+                new MenuButton(3, Component.translatable("menu.options"), b -> this.minecraft.setScreen(new OptionsScreen(this, this.minecraft.options))),
+                new MenuButton(4, Component.translatable("menu.quit"), b -> this.minecraft.stop())};
         int y = this.height - MENU_MARGIN - menu.length * (MENU_HEIGHT + MENU_GAP) + MENU_GAP;
         for (MenuButton button : menu) {
             button.setPosition(0, y);
@@ -126,10 +193,10 @@ public class HorrorTitleScreen extends Screen {
     public void renderBackground(GuiGraphics pGuiGraphics, int pMouseX, int pMouseY, float pPartialTick) {
         pGuiGraphics.fillGradient(0, 0, this.width, this.height, BACKGROUND_TOP, BACKGROUND_BOTTOM);
         RenderSystem.enableBlend();
-        // the Skinwalker, as tall as the screen, its right side on the screen's right edge
+        // Odie tipping his hat, as tall as the screen, toward the right
         int h = this.height;
-        int w = h * SKINWALKER_W / SKINWALKER_H;
-        pGuiGraphics.blit(SKINWALKER, this.width - w, 0, w, h, 0, 0, SKINWALKER_W, SKINWALKER_H, SKINWALKER_W, SKINWALKER_H);
+        int w = h * ODIE_W / ODIE_H;
+        pGuiGraphics.blit(ODIE, (int) (this.width * ODIE_CENTRE) - w / 2, 0, w, h, 0, 0, ODIE_W, ODIE_H, ODIE_W, ODIE_H);
         // the menu corner sinks into darkness
         pGuiGraphics.fillGradient(0, this.height / 2, this.width / 2, this.height, 0x00000000, 0x60000000);
         // the mod's name, faded into the bottom middle, between the menu and the links, above the version lines
@@ -139,8 +206,7 @@ public class HorrorTitleScreen extends Screen {
         RenderSystem.disableBlend();
     }
 
-    @Override
-    public void render(GuiGraphics pGuiGraphics, int pMouseX, int pMouseY, float pPartialTick) {
+    private void renderScaled(GuiGraphics pGuiGraphics, int pMouseX, int pMouseY, float pPartialTick) {
         super.render(pGuiGraphics, pMouseX, pMouseY, pPartialTick);
         // the Minecraft logo with its splash text, at the top left (both are drawn centred on half the width given)
         int logoCentre = LogoRenderer.LOGO_WIDTH / 2 + Math.max(12, this.width / 20);
@@ -153,30 +219,48 @@ public class HorrorTitleScreen extends Screen {
                 this.width / 2, this.height - 22 - line * (this.font.lineHeight + 1), 0x8A7A7A));
     }
 
-    // One of the menu bars: dark red, flush against the left edge and fading out toward its right end. Hovered
-    // (or selected with the keyboard) it lights up and the text slides in a little.
+    // One of the menu buttons: a smear of dried blood from the left edge of the screen (each button its own).
+    // Hovered (or selected with the keyboard) the blood flows: it brightens to a wet red, creeps a little further
+    // out and its drips run down, then a sheen keeps gliding along it until the pointer leaves, when it settles
+    // back; the text slides in a little. Greyed out (Multiplayer when it's disabled), the smear is faint.
     private static class MenuButton extends Button {
-        MenuButton(Component pMessage, OnPress pOnPress) {
+        private final ResourceLocation blood;
+        private float flow;
+        private long lastMillis;
+        private float sheenMillis;
+
+        MenuButton(int pIndex, Component pMessage, OnPress pOnPress) {
             super(0, 0, MENU_WIDTH, MENU_HEIGHT, pMessage, pOnPress, DEFAULT_NARRATION);
+            this.blood = BLOOD[pIndex % BLOOD.length];
         }
 
         @Override
         protected void renderWidget(GuiGraphics pGuiGraphics, int pMouseX, int pMouseY, float pPartialTick) {
             boolean lit = this.active && this.isHoveredOrFocused();
-            int rgb = !this.active ? 0x2A1414 : lit ? 0x8E1018 : 0x5C0A0E;
+            long now = Util.getMillis();
+            float dt = this.lastMillis == 0 ? 0.0F : Math.min(100.0F, now - this.lastMillis);
+            this.lastMillis = now;
+            this.flow = Mth.clamp(this.flow + (lit ? dt / FLOW_IN_MS : -dt / FLOW_OUT_MS), 0.0F, 1.0F);
+            int frame;
+            if (this.flow >= 1.0F) {
+                this.sheenMillis += dt;
+                frame = BLOOD_FLOW_FRAMES + (int) (this.sheenMillis / SHEEN_FRAME_MS) % BLOOD_SHEEN_FRAMES;
+            } else {
+                this.sheenMillis = 0.0F;
+                frame = Math.round(this.flow * (BLOOD_FLOW_FRAMES - 1));
+            }
             int x0 = this.getX(), y0 = this.getY(), w = this.getWidth(), h = this.getHeight();
-            // a horizontal fade: solid for the first 60%, then thinning out to nothing
-            for (int x = 0; x < w; x += 2) {
-                float u = (float) x / w;
-                int alpha = (int) (235 * (u < 0.6F ? 1.0F : 1.0F - (u - 0.6F) / 0.4F));
-                pGuiGraphics.fill(x0 + x, y0, x0 + Math.min(w, x + 2), y0 + h, alpha << 24 | rgb);
+            RenderSystem.enableBlend();
+            if (!this.active) {
+                pGuiGraphics.setColor(1.0F, 1.0F, 1.0F, 0.4F);
             }
-            if (lit) {
-                pGuiGraphics.fill(x0, y0, x0 + 2, y0 + h, 0xFFC0202A);       // a bright sliver on the screen's edge
-            }
+            pGuiGraphics.blit(this.blood, x0, y0, w, h, 0, frame * BLOOD_H, BLOOD_W, BLOOD_H, BLOOD_W,
+                    BLOOD_H * (BLOOD_FLOW_FRAMES + BLOOD_SHEEN_FRAMES));
+            pGuiGraphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+            RenderSystem.disableBlend();
             Font font = Minecraft.getInstance().font;
             int text = !this.active ? 0x6A5A5A : lit ? 0xFFF0E6 : 0xD8C4BC;
-            pGuiGraphics.drawString(font, this.getMessage(), x0 + (lit ? 16 : 12), y0 + (h - 8) / 2, text | 0xFF000000);
+            pGuiGraphics.drawString(font, this.getMessage(), x0 + 12 + Math.round(4 * this.flow), y0 + (h - 8) / 2, text | 0xFF000000);
         }
     }
 

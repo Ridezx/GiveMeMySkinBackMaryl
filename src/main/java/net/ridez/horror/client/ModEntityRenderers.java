@@ -17,6 +17,7 @@ public class ModEntityRenderers {
         event.registerEntityRenderer(ModEntities.dust_ball_projectile.get(), ThrownItemRenderer::new);
 
         event.registerEntityRenderer(ModEntities.skinwalker.get(), SkinwalkerRenderer::new);
+        event.registerEntityRenderer(ModEntities.odie.get(), OdieRenderer::new);
 
         event.registerEntityRenderer(ModEntities.gustav.get(), context -> new TraderRenderer(context, "gustav"));
         event.registerEntityRenderer(ModEntities.walter.get(), context -> new TraderRenderer(context, "walter"));

@@ -20,6 +20,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import net.ridez.horror.HorrorMod;
 import net.ridez.horror.entity.custom.DustBallProjectile;
+import net.ridez.horror.entity.custom.OdieEntity;
 import net.ridez.horror.entity.custom.SaltProjectile;
 import net.ridez.horror.entity.custom.SkinwalkerEntity;
 import net.ridez.horror.entity.custom.TraderEntity;
@@ -43,6 +44,11 @@ public class ModEntities {
             () -> EntityType.Builder.<SkinwalkerEntity>of(SkinwalkerEntity::new, MobCategory.MONSTER)
                     .sized(0.9f, 4.5f).clientTrackingRange(10).build("skinwalker"));
 
+    // Odie, the Hat Man: never saved with the world (he's only ever there for a moment), tracked from far off.
+    public static final RegistryObject<EntityType<OdieEntity>> odie = ENTITY_TYPES.register("odie",
+            () -> EntityType.Builder.<OdieEntity>of(OdieEntity::new, MobCategory.MISC)
+                    .sized(0.6f, 2.7f).clientTrackingRange(16).noSave().fireImmune().build("odie"));
+
     public static final RegistryObject<EntityType<TraderEntity>> gustav = registerTrader("gustav", ModTrades::gustav);
     public static final RegistryObject<EntityType<TraderEntity>> walter = registerTrader("walter", ModTrades::walter);
     public static final RegistryObject<EntityType<TraderEntity>> frank = registerTrader("frank", ModTrades::frank);
@@ -56,6 +62,7 @@ public class ModEntities {
 
     private static void registerAttributes(EntityAttributeCreationEvent event) {
         event.put(skinwalker.get(), SkinwalkerEntity.createAttributes().build());
+        event.put(odie.get(), OdieEntity.createAttributes().build());
         event.put(gustav.get(), TraderEntity.createAttributes().build());
         event.put(walter.get(), TraderEntity.createAttributes().build());
         event.put(frank.get(), TraderEntity.createAttributes().build());

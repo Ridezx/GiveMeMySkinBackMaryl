@@ -17,6 +17,7 @@ import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.minecraftforge.common.ForgeMod;
 import net.minecraftforge.common.SoundActions;
 import net.minecraftforge.fluids.FluidType;
+import net.ridez.horror.HorrorMod;
 import org.joml.Vector3f;
 
 import java.util.function.Consumer;
@@ -25,11 +26,10 @@ import java.util.function.Consumer;
 // but it's thicker: swimming is slower than in water, though not as slow as lava. Two sources never make
 // a new one, so it can't be farmed endlessly.
 public class NutrinonFluidType extends FluidType {
-    // Placeholder look: vanilla's water textures (made to be tinted) tinted bright red. Swap in
-    // horrormod:block/nutrinon_still and nutrinon_flowing once those textures exist (see TEXTURES.md).
-    private static final ResourceLocation STILL_TEXTURE = ResourceLocation.withDefaultNamespace("block/water_still");
-    private static final ResourceLocation FLOWING_TEXTURE = ResourceLocation.withDefaultNamespace("block/water_flowing");
-    private static final int TINT = 0xFFC8101E;
+    // Its own animated textures (art/tools/fluid_textures.py), already bright red, so they're drawn untinted.
+    private static final ResourceLocation STILL_TEXTURE = ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "block/nutrinon_still");
+    private static final ResourceLocation FLOWING_TEXTURE = ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "block/nutrinon_flowing");
+    private static final int TINT = 0xFFFFFFFF;
     private static final Vector3f FOG_COLOR = new Vector3f(0.45F, 0.02F, 0.04F);
     // How much speed is kept each tick while swimming: water keeps 0.8, lava 0.5.
     private static final float DRAG = 0.65F;

@@ -62,6 +62,7 @@ public class ModCreativeModeTabs {
                         output.accept(ModBlocks.veinseep.get());
                         output.accept(ModBlocks.veinseep_deepslate.get());
                         output.accept(ModItems.sweet_berry_bush.get());
+                        output.accept(ModItems.berry_pile.get());
                         output.accept(ModItems.salt.get());
                     }).build());
 

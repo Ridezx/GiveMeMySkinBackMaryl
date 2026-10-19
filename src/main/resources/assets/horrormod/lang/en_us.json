@@ -16,6 +16,7 @@
   "item.horrormod.chisel": "Chisel",
   "item.horrormod.scalpel": "Scalpel",
   "item.horrormod.sweet_berry_bush": "Sweet Berry Bush",
+  "item.horrormod.berry_pile": "Pile of Berries",
   "item.horrormod.grape_hugs": "Grape Hugs",
   "item.horrormod.tar_bucket": "Tar Bucket",
   "item.horrormod.nutrinon_bucket": "Nutrinon Bucket",
@@ -41,6 +42,12 @@
   "entity.horrormod.salt_projectile": "Salt",
   "entity.horrormod.dust_ball_projectile": "Dust Ball",
   "entity.horrormod.skinwalker": "Skinwalker",
+  "entity.horrormod.odie": "Odie",
+  "message.horrormod.odie_careful": "Careful.",
+  "key.categories.horrormod": "Give Me Back My Skin, Maryl",
+  "key.horrormod.reload": "Reload Toy Gun",
+  "tooltip.horrormod.toy_gun.loaded": "Loaded",
+  "tooltip.horrormod.toy_gun.empty": "Empty",
   "death.attack.horrormod.skinwalker": "%1$s was torn apart by %2$s",
   "death.attack.horrormod.skinwalker.player": "%1$s was torn apart by %2$s",
   "death.attack.horrormod.skinwalker.will_it_fit": "I wonder if %1$s's skin will fit this time...",
@@ -66,7 +73,8 @@
   "tooltips.horrormod.magic_block.tooltip": "§4I think he wants me to turn something in...§r",
   "tooltip.horrormod.chisel.shift_down": "Will change stone-based blocks to brick counterpart on right-click",
   "tooltip.horrormod.chisel": "Press §4Shift§r for more information",
-  "tooltip.horrormod.placeholderfood": "Is this...edible?"
+  "tooltip.horrormod.placeholderfood": "Is this...edible?",
 
-
+  "subtitles.horrormod.skinwalker_knock": "Knocking at a door",
+  "subtitles.horrormod.skinwalker_door_voice": "Someone speaks through the door"
 }

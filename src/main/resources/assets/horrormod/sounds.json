@@ -1,0 +1,19 @@
+{
+  "skinwalker_knock": {
+    "subtitle": "subtitles.horrormod.skinwalker_knock",
+    "sounds": [
+      {"name": "minecraft:dig/wood1", "pitch": 0.8},
+      {"name": "minecraft:dig/wood2", "pitch": 0.8},
+      {"name": "minecraft:dig/wood3", "pitch": 0.8},
+      {"name": "minecraft:dig/wood4", "pitch": 0.8}
+    ]
+  },
+  "skinwalker_door_voice": {
+    "subtitle": "subtitles.horrormod.skinwalker_door_voice",
+    "sounds": [
+      {"name": "minecraft:mob/villager/idle1", "pitch": 0.55},
+      {"name": "minecraft:mob/villager/idle2", "pitch": 0.55},
+      {"name": "minecraft:mob/villager/idle3", "pitch": 0.55}
+    ]
+  }
+}

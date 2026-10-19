@@ -828,41 +828,102 @@ def limb_track(u, front, back, lift_h):
     return back + (front - back) * k2, lift_h * math.sin(math.pi * k)
 
 def prone_frame(t):
-    """One moment (t = 0..1) of the belly crawl."""
+    """One moment (t = 0..1) of the belly crawl: it drags itself along by its arms. Each hand reaches far ahead,
+    in front of its own shoulder (it has to fit a 1x1 hole, so nothing goes out to the sides), plants and pulls
+    the body forward while the other reaches; the elbows rise a little, under the low ceiling. The hind legs
+    don't help: they trail limp and straight behind, together, toes pointing back, swaying a little as they're
+    dragged."""
     pose = _editable(PRONE)
     ph = 2 * math.pi * t
-    sway = math.sin(ph)
-    _add(pose, "hips", 0, 5 * sway, 0)             # the body snakes side to side
-    _add(pose, "chest", 0, 0, -8 * sway)
-    _add(pose, "neck", 0, 0, 5 * sway)
-    _add(pose, "head", 0, 4 * sway, 0)
+    pull = math.sin(2 * ph)                         # each pull (two a cycle) heaves the shoulders a little
+    _add(pose, "chest", 2 * pull, 0, -3 * math.sin(ph))
+    _add(pose, "neck", -2 * pull, 0, 2 * math.sin(ph))
+    _add(pose, "head", 0, 2 * math.sin(ph), 0)
     pose = _frozen(pose)
     lift = body_lift(pose) + 0.5
+    pose = _editable(pose)
     for side, sx, off in (("right", -1, 0.0), ("left", 1, 0.5)):
-        # arm: hand planted ahead of the shoulder, dragging the body forward, then reaching ahead again
         s = world(PIVOT[f"{side}_arm"], f"{side}_arm", pose, lift)
-        z, y = limb_track((t + off) % 1.0, s[2] - 18, s[2] - 18 + PRONE_STRIDE, 5.0)
-        hand = (s[0] + sx * 12, HAND_FLAT + y, z)
-        e = ik_joint(s, hand, 15, 16, (sx, 0.45, 0.3))
+        z, y = limb_track((t + off) % 1.0, s[2] - 31, s[2] - 21, 2.5)    # long reaches: the arm stays nearly
+        hand = (s[0] + sx * 1.0, HAND_FLAT + y, z)                           # straight, the elbow low
+        e = ik_joint(s, hand, 15, 16, (sx * 0.15, 1.0, 0.1))
         aim(pose, f"{side}_arm", _sub(e, s))
         aim(pose, f"{side}_forearm", _sub(hand, e))
-        # leg (diagonal pair: this side's leg moves with the other arm): the knee out to the side and
-        # forward like a frog's, pushing the foot back along the ground
-        h = world(PIVOT[f"{side}_leg"], f"{side}_leg", pose, lift)
-        z, y = limb_track((t + off + 0.5) % 1.0, h[2] + 12, h[2] + 12 + PRONE_STRIDE, 4.0)
-        ankle_y = 2.5 + y
-        for _ in range(3):
-            ankle = (h[0] + sx * 17, ankle_y, z)
-            k = ik_joint(h, ankle, 20, 16, (sx, 0.3, -0.5))
-            aim(pose, f"{side}_leg", _sub(k, h))
-            aim(pose, f"{side}_shin", _sub(ankle, k))
-            # the foot (it stands on its toes) lies back along the ground, toes pointing back and a little out
-            aim(pose, f"{side}_foot", (sx * 0.35, -0.25, 1.0))
-            dip = min(world(q, c[1], pose, lift)[1] for c in CUBES
-                      if c[1] == f"{side}_foot" or c[1].startswith(f"{side}_toe") for q in corners(c))
-            ankle_y += y - dip
-            if abs(dip - y) < 0.05:
-                break
+    for side, sx, lag in (("right", -1, 0.0), ("left", 1, 0.6)):
+        sway = math.sin(ph + lag)
+        aim(pose, f"{side}_leg", (-sx * 0.03 + 0.03 * sway, 0.0, 1.0))       # straight back, legs together
+        aim(pose, f"{side}_shin", (-sx * 0.02 + 0.04 * sway, -0.03, 1.0))
+        aim(pose, f"{side}_foot", (-sx * 0.04 + 0.05 * sway, 0.12, 1.0))       # toes trailing, sole up
+    pose = _frozen(pose)
+    return pose, -lowest(pose)
+
+# ---------------------------------------------------------------- the low forms (squeezing through tunnels)
+# Creeping (for 1-wide, 2-high gaps; under 1.9 blocks tall in game): low on all fours, the back nearly level and
+# close under the ceiling, elbows and knees tucked in under the body (nothing out to the sides), the head held
+# low and forward, stalking along. Stooping (for 1-wide, 3-high gaps; under 2.9 blocks): up on its hind legs but
+# folded over, knees deeply bent, the back rounded and level just under the ceiling, the head pushed forward and
+# the long arms hanging, the knuckles brushing the floor as it walks.
+CREEP_CHEST_ABS = -88        # the body's angle (hips rotation): level
+CREEP_HIP_HEIGHT = 15.0      # hips this far off the ground (px): the head just clears 1.9 blocks
+CREEP_STRIDE = 10.0          # how far a hand or foot travels per step (px)
+
+def creep_frame(t, moving=True):
+    """One moment of creeping (t = 0..1 of a step cycle; standing still if not moving: it breathes)."""
+    ph = 2 * math.pi * t
+    pose = _editable(mirror(P(neck=16, head=48)))
+    _add(pose, "hips", CREEP_CHEST_ABS + (1.5 * math.sin(2 * ph) if moving else 0.0))
+    if not moving:
+        b = math.sin(ph); _add(pose, "torso", 0.8 * b); _add(pose, "chest", 1.4 * b); _add(pose, "neck", -1.0 * b)
+    pose = _frozen(pose)
+    ground = PIVOT["hips"][1] - CREEP_HIP_HEIGHT
+    pose = _editable(pose)
+    for side, sx, off in (("right", -1, 0.0), ("left", 1, 0.5)):
+        s = world(PIVOT[f"{side}_arm"], f"{side}_arm", pose)
+        if moving:
+            z, y = limb_track((t + off) % 1.0, s[2] - 6, s[2] - 6 + CREEP_STRIDE, 3.0)
+        else:
+            z, y = s[2] - 1, 0.0
+        hand = (s[0] - sx * 1.5, ground + HAND_FLAT + y, z)           # hands a little inside the shoulders
+        e = ik_joint(s, hand, 15, 16, (0.0, 0.25, 1.0))              # elbow tucked, pointing back
+        aim(pose, f"{side}_arm", _sub(e, s))
+        aim(pose, f"{side}_forearm", _sub(hand, e))
+        h = world(PIVOT[f"{side}_leg"], f"{side}_leg", pose)
+        if moving:                                                  # the leg moves with the other arm
+            z, y = limb_track((t + off + 0.5) % 1.0, h[2] + 2, h[2] + 2 + CREEP_STRIDE, 3.0)
+        else:
+            z, y = h[2] + 7, 0.0
+        ankle = (h[0] + sx * 0.3, ground + 5.0 + y, z)
+        k = ik_joint(h, ankle, 20, 16, (sx * 0.15, 0.1, -1.0))      # knee forward, tucked under
+        aim(pose, f"{side}_leg", _sub(k, h))
+        aim(pose, f"{side}_shin", _sub(ankle, k))
+        aim(pose, f"{side}_foot", (sx * 0.05, -0.55, 0.85))          # the foot down and back to the toes
+    pose = _frozen(pose)
+    return pose, -lowest(pose)
+
+STOOP = mirror(P(hips=-42, torso=-8, chest=-28, neck=16, head=55,
+                 right_leg=72, right_shin=-140, right_foot=70))      # the head just clears 2.9 blocks
+
+def stoop_frame(t, moving=True):
+    """One moment of stooping (t = 0..1 of a stride; standing still if not moving: it breathes, arms swaying)."""
+    ph = 2 * math.pi * t
+    pose = _editable(STOOP)
+    if moving:
+        for side, offset in (("right", 0.0), ("left", math.pi)):
+            q = ph + offset; sw = math.sin(q); swinging = max(0.0, math.cos(q))
+            _add(pose, f"{side}_leg", 16 * sw)
+            _add(pose, f"{side}_shin", -16 * swinging)
+            _add(pose, f"{side}_foot", 10 * swinging)
+        _add(pose, "chest", dy=3 * math.sin(ph)); _add(pose, "head", dy=-2 * math.sin(ph))
+    else:
+        b = math.sin(ph); _add(pose, "torso", 0.6 * b); _add(pose, "chest", 1.2 * b); _add(pose, "neck", -1.0 * b)
+    pose = _frozen(pose)
+    pose = _editable(pose)
+    for side, sx, offset in (("right", -1, 0.0), ("left", 1, math.pi)):
+        swing = math.sin(ph + offset + math.pi) if moving else 0.25 * math.sin(ph + offset)
+        # the arms hang straight down from the shoulders, swinging against the legs, knuckles near the floor
+        aim(pose, f"{side}_arm", (sx * 0.06, -1.0, -0.18 - 0.22 * swing))
+        aim(pose, f"{side}_forearm", (sx * 0.02, -1.0, -0.3 - 0.3 * swing))
+    pose = _frozen(pose)
     return pose, -lowest(pose)
 
 # Swimming: a dog paddle, body flat at the surface, head held up out of the liquid.
@@ -1472,6 +1533,36 @@ def hurt_frames(base, flinch):
     return keyed([(0.0, base), (0.08, flinch, {"back": 2.5}), (0.2, blend(flinch, base, 0.4), {"back": 2.0}),
                   (0.45, base)], step=0.025)
 
+# --- knocking on a door (it found one while roaming; see SkinwalkerEntity's KnockGoal). Standing: kneels down
+# (the hocks to the ground, the chest bent forward) so its fist is at the height of a door handle, about 1.1 blocks
+# up, and raps three times (the game plays the knocks at 1.1, 1.35 and 1.6 s); then it stays kneeling, the head
+# cocked, listening at the door for a few seconds, and gets up. On all fours: a front hand comes up off the ground
+# and raps three times at the same height, then the same long listening tilt.
+KNOCK_TIMES = (1.1, 1.35, 1.6)
+KNOCK_LENGTH = 5.4
+def _knock_frames(base, low, raise_, hit, listen):
+    keys = [(0.0, base), (0.6, low), (0.9, raise_)]
+    for t in KNOCK_TIMES:
+        keys += [(t - 0.07, raise_), (t, hit), (t + 0.1, raise_)]
+    keys += [(2.1, listen), (4.5, listen), (KNOCK_LENGTH, base)]
+    return keyed(keys, step=0.025)
+
+KNOCK_KNEEL = edit(STAND, hips=-12, chest=-35, neck=40, head=10, right_leg=95, right_shin=-165, right_foot=70)
+KNOCK_RAISE = with_hands(dict(KNOCK_KNEEL, right_arm=(10, 0, -8), right_forearm=(100, 0, 0)), FIST, None)
+KNOCK_HIT = with_hands(dict(KNOCK_KNEEL, right_arm=(25, 0, -8), right_forearm=(70, 0, 0)), FIST, None)
+KNOCK_LISTEN = with_hands(dict(KNOCK_KNEEL, right_arm=(5, 0, -8), right_forearm=(40, 0, 0),
+                               head=(KNOCK_KNEEL["head"][0] + 6, 10, 24)), FIST, None)
+KNOCK4_RAISE = with_hands(dict(arm_add(REST4, "right", 25, 0, -12, forearm=78), chest=(0, 8, 0)), FIST, None)
+KNOCK4_HIT = with_hands(dict(arm_add(REST4, "right", 35, 0, -12, forearm=60), chest=(0, 8, 0)), FIST, None)
+KNOCK4_LISTEN = with_hands(dict(arm_add(REST4, "right", 15, 0, -12, forearm=45), chest=(0, 8, 0),
+                                head=(REST4["head"][0] + 8, 10, 26)), FIST, None)
+
+def knock_frames():
+    return _knock_frames(STAND, KNOCK_KNEEL, KNOCK_RAISE, KNOCK_HIT, KNOCK_LISTEN)
+
+def knock4_frames():
+    return _knock_frames(REST4, REST4, KNOCK4_RAISE, KNOCK4_HIT, KNOCK4_LISTEN)
+
 # ---------------------------------------------------------------- character
 PINCH = (50, 45, 45)                            # fingers pinching skin between the index finger and thumb
 
@@ -1640,7 +1731,8 @@ for _g, _names in (("Idle", ("rest_on_fours", "rest_standing", "alert", "alert_o
                    ("Movement", ("walk_on_fours", "walk_standing", "run_on_fours", "flee_on_fours", "run_standing",
                                  "flee_standing", "stand_to_crawl", "crawl_to_stand", "crawl_prone", "crawl_to_prone", "prone_to_crawl",
                                  "climb_up", "climb_down",
-                                 "climb_over_ledge", "climb_over_ledge_to_stand", "leap", "leap_standing", "swim")),
+                                 "climb_over_ledge", "climb_over_ledge_to_stand", "leap", "leap_standing", "swim",
+                                 "creep", "rest_creep", "stoop", "rest_stoop")),
                    ("Sleep", ("lie_down_on_fours", "lie_down_standing", "sleep_on_fours", "sleep_standing",
                               "wake_on_fours_to_on_fours", "wake_on_fours_to_standing", "wake_standing_to_on_fours",
                               "wake_standing_to_standing")),
@@ -1649,7 +1741,7 @@ for _g, _names in (("Idle", ("rest_on_fours", "rest_standing", "alert", "alert_o
                    ("Reactions", ("hurt_standing", "hurt_on_fours")),
                    ("Death", ("death_standing", "death_on_fours", "dust_death_standing", "dust_death_on_fours")),
                    ("Character", ("sniff_standing", "sniff_on_fours", "head_tilt_standing", "head_tilt_on_fours",
-                                  "adjust_skin_standing", "adjust_skin_on_fours"))):
+                                  "adjust_skin_standing", "adjust_skin_on_fours", "knock_standing", "knock_on_fours"))):
     for _n in _names:
         GROUP_OF[_n] = _g
 
@@ -1762,6 +1854,19 @@ def build():
     prone0 = prone[0]
     crawl_to_prone = densify([(0.0, REST4, -lowest(REST4)), (0.8, prone0[1], prone0[2])], steps=6)
     prone_to_crawl = densify([(0.0, prone0[1], prone0[2]), (0.8, REST4, -lowest(REST4))], steps=6)
+    creep = cycle(creep_frame, 0.9, 12)
+    rest_creep = cycle(lambda t: creep_frame(t, moving=False), 3.0, 8)
+    stoop = cycle(stoop_frame, 1.1, 12)
+    rest_stoop = cycle(lambda t: stoop_frame(t, moving=False), 3.0, 8)
+    # every change between two forms that doesn't have its own animation already (the forms: standing, stooping,
+    # on all fours ("crawl"), creeping and on its belly ("prone")), as a straight blend that keeps it on the ground
+    forms = {"stand": STAND, "stoop": rest_stoop[0][1], "crawl": REST4, "creep": rest_creep[0][1], "prone": prone0[1]}
+    form_changes = []
+    for a_name, a_pose in forms.items():
+        for b_name, b_pose in forms.items():
+            name = f"{a_name}_to_{b_name}"
+            if a_name != b_name and name not in ("stand_to_crawl", "crawl_to_stand", "crawl_to_prone", "prone_to_crawl"):
+                form_changes.append(animation(name, "hold", 0.8, transition(a_pose, b_pose, 0.8), group="Movement"))
     climb_up = cycle(lambda t: climb_frame(t), 1.0, 8)
     climb_down = cycle(lambda t: climb_frame(t, down=True), 1.2, 8)
     ledge = ledge_frames()
@@ -1795,7 +1900,9 @@ def build():
                   ("head_tilt_standing", "hold", tilt_frames()),
                   ("head_tilt_on_fours", "hold", tilt4_frames()),
                   ("adjust_skin_standing", "hold", adjust_skin_frames()),
-                  ("adjust_skin_on_fours", "hold", adjust_skin4_frames())]
+                  ("adjust_skin_on_fours", "hold", adjust_skin4_frames()),
+                  ("knock_standing", "hold", knock_frames()),
+                  ("knock_on_fours", "hold", knock4_frames())]
     leap_standing = leap_standing_frames()
     ledge_to_stand = ledge_to_stand_frames()
     return {"meta": {"format_version": "4.10", "model_format": "modded_entity", "box_uv": True},
@@ -1817,6 +1924,10 @@ def build():
                                            animation("crawl_to_stand", "hold", 0.9, crawl_to_stand),
                                            animation("crawl_prone", "loop", 0.6, prone),
                                            animation("crawl_to_prone", "hold", 0.8, crawl_to_prone),
+                                           animation("creep", "loop", 0.9, creep),
+                                           animation("rest_creep", "loop", 3.0, rest_creep),
+                                           animation("stoop", "loop", 1.1, stoop, hands="relaxed"),       # (knuckles
+                                           animation("rest_stoop", "loop", 3.0, rest_stoop, hands="relaxed"),  # loose)
                                            animation("prone_to_crawl", "hold", 0.8, prone_to_crawl),
                                            animation("climb_up", "loop", 1.0, climb_up),
                                            animation("climb_down", "loop", 1.2, climb_down),
@@ -1828,7 +1939,8 @@ def build():
                                            animation("leap_standing", "hold", 0.95, leap_standing),
                                            animation("climb_over_ledge_to_stand", "hold", 1.6, ledge_to_stand)]
                           + [animation(n, l, ln, fr, hands=RELAXED_HANDS.get(n, "auto")) for n, l, ln, fr in sleep_set]
-                          + [animation(n, l, fr[-1][0], fr, hands=RELAXED_HANDS.get(n, "auto")) for n, l, fr in combat_set]}
+                          + [animation(n, l, fr[-1][0], fr, hands=RELAXED_HANDS.get(n, "auto")) for n, l, fr in combat_set]
+                          + form_changes}
 
 # ---------------------------------------------------------------- GeckoLib export (what the game loads)
 ASSETS = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "src", "main",
