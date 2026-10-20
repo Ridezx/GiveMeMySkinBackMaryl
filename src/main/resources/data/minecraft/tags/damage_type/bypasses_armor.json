@@ -1,6 +1,8 @@
 {
   "replace": false,
   "values": [
-    "horrormod:skinwalker"
+    "horrormod:skinwalker",
+    "horrormod:sandman_shot",
+    "horrormod:bleeding"
   ]
 }

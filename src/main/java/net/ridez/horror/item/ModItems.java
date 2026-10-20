@@ -7,6 +7,9 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraftforge.common.ForgeSpawnEggItem;
+import net.minecraft.world.item.ArmorItem;
+import net.ridez.horror.item.custom.ClothStrapItem;
+import net.ridez.horror.item.custom.TacticalVestItem;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -16,7 +19,6 @@ import net.ridez.horror.entity.ModEntities;
 import net.ridez.horror.fluid.ModFluids;
 import net.ridez.horror.item.custom.BerryBushItem;
 import net.ridez.horror.item.custom.ChiselItem;
-import net.ridez.horror.item.custom.FuelItem;
 import net.ridez.horror.item.custom.GrapeHugsItem;
 import net.ridez.horror.item.custom.HolyTextItem;
 import net.ridez.horror.item.custom.ScalpelItem;
@@ -34,7 +36,7 @@ public class ModItems {
     public static final RegistryObject<Item> pelt = ITEMS.register("pelt",
             ()->new Item(new Item.Properties().food(ModFoodProperties.pelt)));
     public static final RegistryObject<Item> cloth_strap = ITEMS.register("cloth_strap",
-            ()->new Item(new Item.Properties()));
+            ()->new ClothStrapItem(new Item.Properties()));
     public static final RegistryObject<Item> graft = ITEMS.register("graft",
             ()->new Item(new Item.Properties().food(ModFoodProperties.graft)));
     public static final RegistryObject<Item> heroine = ITEMS.register("heroine",
@@ -77,20 +79,24 @@ public class ModItems {
             () -> new ForgeSpawnEggItem(ModEntities.walter, 0x3B5E2B, 0xE8D44D, new Item.Properties()));
     public static final RegistryObject<Item> frank_spawn_egg = ITEMS.register("frank_spawn_egg",
             () -> new ForgeSpawnEggItem(ModEntities.frank, 0x4A3728, 0x9C2A2A, new Item.Properties()));
+    public static final RegistryObject<Item> sandman_spawn_egg = ITEMS.register("sandman_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.sandman, 0x0B0B12, 0x3C78F0, new Item.Properties()));
+    public static final RegistryObject<Item> angel_spawn_egg = ITEMS.register("angel_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.angel, 0xE8E4DA, 0x8A8578, new Item.Properties()));
+    public static final RegistryObject<Item> hollow_spawn_egg = ITEMS.register("hollow_spawn_egg",
+            () -> new ForgeSpawnEggItem(ModEntities.hollow, 0x4E5638, 0x8C7A3E, new Item.Properties()));
+    // Dropped by Sandmen (see their loot table): the vest has four pockets; the boots walk through Tar unslowed.
+    public static final RegistryObject<Item> tactical_vest = ITEMS.register("tactical_vest",
+            () -> new TacticalVestItem(ModArmorMaterials.tactical.getHolder().orElseThrow(),
+                    new Item.Properties().stacksTo(1).durability(ArmorItem.Type.CHESTPLATE.getDurability(33))));
+    public static final RegistryObject<Item> tactical_boots = ITEMS.register("tactical_boots",
+            () -> new ArmorItem(ModArmorMaterials.tactical.getHolder().orElseThrow(), ArmorItem.Type.BOOTS,
+                    new Item.Properties().stacksTo(1).durability(ArmorItem.Type.BOOTS.getDurability(33))));
     public static final RegistryObject<Item> sweet_berry_bush = ITEMS.register("sweet_berry_bush",
             () -> new BerryBushItem(new Item.Properties()));
     public static final RegistryObject<Item> berry_pile = ITEMS.register("berry_pile",
             () -> new Item(new Item.Properties()));
-    public static final RegistryObject<Item> placeholderfood = ITEMS.register("placeholderfood",
-        () -> new Item(new Item.Properties().food(ModFoodProperties.placeholderfood)) {
-            @Override
-            public void appendHoverText(ItemStack pStack, TooltipContext pContext, List<Component> pTooltipComponents, TooltipFlag pTooltipFlag) {
-                pTooltipComponents.add(Component.translatable("tooltip.horrormod.placeholderfood"));
-                super.appendHoverText(pStack, pContext, pTooltipComponents, pTooltipFlag);
-            }
-        });
-    public static final RegistryObject<Item> placeholderfuel = ITEMS.register("placeholderfuel",
-            () -> new FuelItem(new Item.Properties(),1200));
+
 
 
 

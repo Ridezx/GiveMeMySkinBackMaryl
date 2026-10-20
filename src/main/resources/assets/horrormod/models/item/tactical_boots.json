@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "horrormod:item/placeholderfuel"
+    "layer0": "horrormod:item/tactical_boots"
   }
 }

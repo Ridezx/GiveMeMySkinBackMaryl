@@ -1,5 +1,6 @@
 package net.ridez.horror.entity.custom;
 
+import net.minecraft.Util;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
@@ -30,11 +31,16 @@ import net.ridez.horror.entity.ModEntities;
 import net.ridez.horror.item.ModItems;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
+
 // Brings Odie (OdieEntity) into the world. There's only ever one. He comes for a player carrying a lot of Dust
 // (180 counted as Dust: a Dust Ball is 4, a Dust Brick 16), now and then, at most once every 10 minutes per player,
 // in the morning, evening or at night (never around midday). He stands on high ground: a treeless hilltop or ridge
 // at least 100 blocks up, 45 to 95 blocks from the player, where they could see him from where they are. If there's no such
-// place around, he doesn't come.
+// place around, he doesn't come. (Every spot in that ring is looked at, 2 blocks apart, in random order, so if
+// there's somewhere he can stand he's found it.) When he appears, the player thinks to themself in chat:
+// "I...I feel watched."
 // For testing, /odie appear (operators) brings him to the player running it straight away (any time, any amount
 // of Dust), still on a summit.
 @Mod.EventBusSubscriber(modid = HorrorMod.MOD_ID)
@@ -45,7 +51,7 @@ public class OdieSpawner {
     private static final int DUST_NEEDED = 180;
     private static final int HIGH_GROUND = 100;
     private static final double MIN_DISTANCE = 45.0, MAX_DISTANCE = 95.0;
-    private static final int TRIES = 96;
+    private static final int GRID = 2;                  // the ring is searched in steps this big
     private static final int TREE_CLEARANCE = 3;        // no logs or leaves this close
     private static final String LAST_VISIT = "horrormod_odie_last_visit";
 
@@ -116,17 +122,29 @@ public class OdieSpawner {
         odie.setWatched(pPlayer.getUUID());
         pLevel.addFreshEntity(odie);
         pPlayer.getPersistentData().putLong(LAST_VISIT, pLevel.getGameTime());
+        // the player's own thought, shown to them alone as if they'd said it
+        pPlayer.sendSystemMessage(Component.translatable("chat.type.text", pPlayer.getDisplayName(),
+                Component.translatable("message.horrormod.odie_watched")));
         return odie;
     }
 
     @Nullable
     private static BlockPos findSummit(ServerLevel pLevel, ServerPlayer pPlayer) {
         RandomSource random = pLevel.random;
-        for (int i = 0; i < TRIES; i++) {
-            double angle = random.nextDouble() * Math.PI * 2;
-            double distance = MIN_DISTANCE + random.nextDouble() * (MAX_DISTANCE - MIN_DISTANCE);
-            int x = Mth.floor(pPlayer.getX() + Math.cos(angle) * distance);
-            int z = Mth.floor(pPlayer.getZ() + Math.sin(angle) * distance);
+        // every spot in the ring around the player, in random order
+        List<int[]> spots = new ArrayList<>();
+        int px = pPlayer.getBlockX(), pz = pPlayer.getBlockZ(), r = (int) MAX_DISTANCE;
+        for (int dx = -r; dx <= r; dx += GRID) {
+            for (int dz = -r; dz <= r; dz += GRID) {
+                double d = Math.sqrt(dx * dx + dz * dz);
+                if (d >= MIN_DISTANCE && d <= MAX_DISTANCE) {
+                    spots.add(new int[]{px + dx, pz + dz});
+                }
+            }
+        }
+        Util.shuffle(spots, random);
+        for (int[] spot : spots) {
+            int x = spot[0], z = spot[1];
             if (!pLevel.hasChunkAt(new BlockPos(x, 0, z))) {
                 continue;
             }

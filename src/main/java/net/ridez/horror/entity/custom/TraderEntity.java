@@ -87,6 +87,15 @@ public class TraderEntity extends AbstractVillager {
         this.getOffers().addAll(this.trades.get());
     }
 
+    // Dealing with a trader is a crime the Sandmen never forget: every trade adds to the player's record (see SandmanEntity).
+    @Override
+    public void notifyTrade(MerchantOffer pOffer) {
+        super.notifyTrade(pOffer);
+        if (this.getTradingPlayer() != null && !this.getTradingPlayer().isCreative()) {
+            SandmanEntity.addToRecord(this.getTradingPlayer(), SandmanEntity.RECORD_TRADE);
+        }
+    }
+
     // XP orbs per trade, like the wandering trader.
     @Override
     protected void rewardTradeXp(MerchantOffer pOffer) {

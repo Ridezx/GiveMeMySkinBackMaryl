@@ -43,6 +43,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
+import net.ridez.horror.worldgen.HolyPlaces;
 import net.ridez.horror.HorrorMod;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Mob;
@@ -65,7 +66,6 @@ import software.bernie.geckolib.animation.PlayState;
 import software.bernie.geckolib.animation.RawAnimation;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -86,9 +86,10 @@ import java.util.UUID;
 //   far enough away that nobody can see it.
 // - It only counts a player as seen after keeping them in sight for a full 1.5 seconds.
 // - It lives in dense forests (see tags/worldgen/biome/skinwalker_spawns_in.json).
-// - Very tanky: normal attacks only do a quarter of their damage, so players are meant to run.
+// - 18 health, but normal attacks only do a quarter of their damage (six critical hits of a netherite sword), so players
+//   are meant to run.
 // - Its hits always do 8 damage (4 hearts), whatever armor the target wears, and knock down a raised shield
-//   like an axe does. Iron golems attack it, and it kills one in a single hit.
+//   like an axe does. Iron golems attack it, and it kills one in three hits.
 // - It screams now and then while it chases a player.
 // - The first time a player hurts it, it screams, then either flees or fights (50/50); after that it just
 //   flinches and fights back, so repeated hits don't keep it screaming.
@@ -97,6 +98,11 @@ import java.util.UUID;
 //   gets back up onto all fours once there's room (straight away if whoever it's after has room too).
 // - It climbs up walls to get at something above it, like a spider: out of a pit, up a pillar, up a 1x1 shaft.
 // - Salt (Straw): no damage, but the third hit makes it scream and flee.
+// - It never goes into a holy place (HolyPlaces): it won't wander or follow a sound in, and a player who runs into
+//   one is safe: it stops chasing them and leaves them be for 30 seconds (and while they stay inside).
+// - Hurt by a Sandman: it screams, then flees from her or fights her (50/50), in its form (two of her shots kill it,
+//   as two Dust Balls do). Awake and not fighting one, it runs from any Sandman it sees within 24 blocks too,
+//   keeping an eye on where she is, and keeps running while she's still that close.
 // - Dust Ball (Toy Gun): full damage, and the second hit kills it outright. A first hit has a 10% chance to
 //   enrage it instead: it freezes and screams at the shooter for 1.5 seconds, then charges them at high
 //   speed for a few seconds.
@@ -114,6 +120,10 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     private static final double FLEE_SPEED = 2.0;
     // How far each fresh escape point is picked from the player it's running from.
     private static final int FLEE_RANGE = 32;
+    // A Sandman it sees this close sends it running (checked every half second), for at least FLEE_FROM_SANDMAN_TICKS
+    // after it last saw her that close.
+    private static final double SANDMAN_FEAR_RANGE = 24.0;
+    private static final int FLEE_FROM_SANDMAN_TICKS = 100;
     // Enraged by the Toy Gun: chance per surviving Dust Ball hit, how long the charge lasts, and how much
     // faster it runs meanwhile (+60% is ~16 blocks/s, well beyond any player).
     private static final float ENRAGE_CHANCE = 0.1F;
@@ -169,7 +179,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     private static final int PRONE_GET_UP_TICKS = 60;
     // Its hits: a flat 8 damage that armor, its enchantments and the difficulty don't change
     // (data/horrormod/damage_type/skinwalker.json and the damage_type tags it's in).
-    private static final ResourceKey<DamageType> SKINWALKER_DAMAGE = ResourceKey.create(Registries.DAMAGE_TYPE,
+    public static final ResourceKey<DamageType> SKINWALKER_DAMAGE = ResourceKey.create(Registries.DAMAGE_TYPE,
             ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "skinwalker"));
     private static final float HIT_DAMAGE = 8.0F;
     // A player counts as seen once it has kept them in sight for 1.5 seconds without a break.
@@ -273,7 +283,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     private int rageTicks;
     // Who scared it; not saved, so after a reload it runs from the nearest player instead.
     @Nullable
-    private Player scaredBy;
+    private LivingEntity scaredBy;
     private int lastScreamTick = -1;
     // ticks left holding still (screaming, flinching, changing form, waking)
     private int holdTicks;
@@ -325,6 +335,9 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     private int squeezeCommitTicks;
     private int noWayTicks;
     private final Map<UUID, Integer> leftBe = new HashMap<>();
+    // Its hits on each iron golem so far (GOLEM_HITS kill one, however much it has healed in between).
+    private final Map<UUID, Integer> golemHits = new HashMap<>();
+    private static final int GOLEM_HITS = 3;
     // knocking: the door it's knocking on and how far into the knock it is, the wait before the next knock, and
     // when it last knocked on each door
     @Nullable
@@ -354,7 +367,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
 
     public static AttributeSupplier.Builder createAttributes() {
         return Monster.createMonsterAttributes()
-                .add(Attributes.MAX_HEALTH, 100.0)
+                .add(Attributes.MAX_HEALTH, 18.0)                         // (normal hits do a quarter: six critical hits of a netherite sword)
                 .add(Attributes.ATTACK_DAMAGE, 8.0)
                 // ~6.4 blocks/s when chasing: faster than a sprinting player on flat ground (~5.6) and a baby
                 // zombie (~5.2), just under a sprint-jumping player (~7), so only sprint-jumping escapes it.
@@ -399,7 +412,14 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         this.goalSelector.addGoal(2, new MeleeAttackGoal(this, 1.0, false));
         this.goalSelector.addGoal(4, new KnockGoal());
         this.goalSelector.addGoal(3, new LingerGoal());
-        WaterAvoidingRandomStrollGoal amble = new WaterAvoidingRandomStrollGoal(this, AMBLE_SPEED);
+        WaterAvoidingRandomStrollGoal amble = new WaterAvoidingRandomStrollGoal(this, AMBLE_SPEED) {
+            @Nullable
+            @Override
+            protected Vec3 getPosition() {                  // (never into a holy place)
+                Vec3 to = super.getPosition();
+                return to != null && SkinwalkerEntity.this.isHoly(BlockPos.containing(to)) ? null : to;
+            }
+        };
         amble.setInterval(AMBLE_INTERVAL);
         this.goalSelector.addGoal(5, amble);
         this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 16.0F));
@@ -407,7 +427,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         // it has to have seen a player (1.5 seconds in sight) to go after them, and can't while asleep
         this.targetSelector.addGoal(1, new NearestAttackableTargetGoal<>(this, Player.class, 10, true, false,
                 player -> this.huntsOnSight && !this.isFleeing() && !this.sleeping && !this.leavingAtDawn
-                        && player instanceof Player seen && this.hasSeen(seen) && !this.leavingBe(seen)));
+                        && player instanceof Player seen && this.hasSeen(seen) && !this.leavingBe(seen) && !this.isHoly(seen.blockPosition())));
     }
 
     @Override
@@ -440,6 +460,20 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
         boolean hurt = super.hurt(pSource, pAmount);
         if (this.leavingAtDawn) {
             return hurt;                            // it just keeps going
+        }
+        // Hurt by a Sandman: it screams, then flees from her or turns on her (50/50), in whatever form it's in; once
+        // it has chosen, more hits from her don't change its mind.
+        if (hurt && this.isAlive() && pSource.getEntity() instanceof SandmanEntity sandman) {
+            if (this.getTarget() == sandman || this.isFleeing()) {
+                return true;
+            }
+            this.scream();
+            if (this.random.nextBoolean()) {
+                this.startFleeing(sandman);
+            } else {
+                this.setTarget(sandman);
+            }
+            return true;
         }
         if (hurt && dustBall && this.isAlive() && pSource.getEntity() instanceof Player shooter
                 && this.random.nextFloat() < ENRAGE_CHANCE) {
@@ -474,7 +508,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     }
 
     // Fear wins over rage: scaring it off (e.g. a third Salt hit) cancels a wind-up or charge.
-    private void startFleeing(@Nullable Player from) {
+    private void startFleeing(@Nullable LivingEntity from) {
         this.windupTicks = 0;
         this.rageTicks = 0;
         this.fleeTicks = FLEE_TICKS;
@@ -484,6 +518,41 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
 
     public boolean isFleeing() {
         return this.fleeTicks > 0;
+    }
+
+    private boolean isHoly(BlockPos pPos) {
+        return this.level() instanceof ServerLevel level && HolyPlaces.inside(level, pPos);
+    }
+
+    // A player it's chasing who gets into a holy place is safe from it: it gives up on them.
+    private void tickHoly() {
+        if (this.tickCount % 10 == 0 && this.getTarget() instanceof Player player && this.isHoly(player.blockPosition())) {
+            this.leftBe.put(player.getUUID(), this.tickCount + LEAVE_BE_TICKS);
+            this.setTarget(null);
+        }
+    }
+
+    // Awake and seeing a Sandman close by, it runs from her, and keeps running while she's still that close.
+    private void tickSandmanFear() {
+        if (this.tickCount % 10 != 0 || this.sleeping || this.leavingAtDawn || this.getTarget() instanceof SandmanEntity) {
+            return;
+        }
+        SandmanEntity nearest = null;
+        double best = SANDMAN_FEAR_RANGE * SANDMAN_FEAR_RANGE;
+        for (SandmanEntity sandman : this.level().getEntitiesOfClass(SandmanEntity.class, this.getBoundingBox().inflate(SANDMAN_FEAR_RANGE))) {
+            double d = this.distanceToSqr(sandman);
+            if (sandman.isAlive() && d < best && this.hasLineOfSight(sandman)) {
+                nearest = sandman;
+                best = d;
+            }
+        }
+        if (nearest == null) {
+            return;
+        }
+        if (!this.isFleeing() || this.scaredBy != nearest) {
+            this.startFleeing(nearest);
+        }
+        this.fleeTicks = Math.max(this.fleeTicks, FLEE_FROM_SANDMAN_TICKS);
     }
 
     private void enrage(Player target) {
@@ -507,13 +576,16 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     }
 
     // Like a mob's normal attack, but with its own damage type (a flat 8 through any armor), an iron golem dies
-    // in one hit, and a shield that blocks it is knocked down for 5 seconds like an axe does.
+    // in three hits, and a shield that blocks it is knocked down for 5 seconds like an axe does.
     @Override
     public boolean doHurtTarget(Entity pTarget) {
         DamageSource source = new SkinwalkerDamageSource(this.level().registryAccess().registryOrThrow(Registries.DAMAGE_TYPE)
                 .getHolderOrThrow(SKINWALKER_DAMAGE), this);
-        float damage = pTarget instanceof IronGolem golem ? golem.getHealth() + golem.getMaxHealth()
-                : HIT_DAMAGE;
+        float damage = HIT_DAMAGE;
+        if (pTarget instanceof IronGolem golem) {           // three hits kill it: a third of it each, the third finishes it
+            int hits = this.golemHits.merge(golem.getUUID(), 1, Integer::sum);
+            damage = hits >= GOLEM_HITS ? golem.getHealth() + golem.getMaxHealth() : golem.getMaxHealth() / GOLEM_HITS;
+        }
         boolean shielded = pTarget instanceof Player player && player.isDamageSourceBlocked(source);
         boolean hit = pTarget.hurt(source, damage);
         if (shielded && pTarget instanceof Player player) {
@@ -655,6 +727,9 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
 
     // A sound it can hear at pos: footsteps (see listen) or a block placed or broken (see SkinwalkerHearing).
     public void hearSound(Vec3 pos) {
+        if (this.isHoly(BlockPos.containing(pos))) {
+            return;                                 // (whatever it is, it's in a holy place: it won't go in)
+        }
         if (this.leavingAtDawn || !this.isAlive() || !this.sleeping && (this.knockDoor != null || this.lingerTicks > 0)) {
             return;                                 // (knocking or waiting at a door, it pays footsteps no mind)
         }
@@ -754,6 +829,8 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
             this.tickRoute();
             this.tickKnock();
             this.tickChaseScream();
+            this.tickSandmanFear();
+            this.tickHoly();
             if (this.sleepyTicks > 0 && --this.sleepyTicks == 0) {
                 this.fallAsleep();
             }
@@ -909,10 +986,6 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
 
     public boolean isLow() {
         return this.getLow() != NOT_LOW;
-    }
-
-    public boolean isProne() {
-        return this.getLow() == ON_BELLY;
     }
 
     // Climbs (like a spider) while it's against a wall, or in a shaft, trying to get to something above it.
@@ -1469,7 +1542,7 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
     }
 
     // Runs flat out away from whoever scared it for the whole flee time, picking a fresh escape point far
-    // from them whenever it arrives or every second, even when it can no longer see them.
+    // from them whenever it arrives or every second (half a second from a Sandman), even when it can no longer see them.
     private class FleeGoal extends Goal {
         private int repathCooldown;
 
@@ -1503,15 +1576,19 @@ public class SkinwalkerEntity extends Monster implements GeoEntity {
             if (--this.repathCooldown > 0 && !self.getNavigation().isDone()) {
                 return;
             }
-            this.repathCooldown = 20;
-            Player from = self.scaredBy;
+            LivingEntity from = self.scaredBy;
+            this.repathCooldown = from instanceof SandmanEntity ? 10 : 20;     // (from a Sandman it checks on her more often)
             if (from == null || !from.isAlive() || from.level() != self.level()) {
                 from = self.level().getNearestPlayer(self, FLEE_RANGE * 2);
             }
             if (from == null) {
                 return;
             }
+            // (where there's nowhere that far, e.g. on a mountain, somewhere nearer)
             Vec3 away = DefaultRandomPos.getPosAway(self, FLEE_RANGE, 10, from.position());
+            for (int range = FLEE_RANGE / 2; away == null && range >= 8; range /= 2) {
+                away = DefaultRandomPos.getPosAway(self, range, 7, from.position());
+            }
             if (away != null) {
                 self.getNavigation().moveTo(away.x, away.y, away.z, FLEE_SPEED);
             }

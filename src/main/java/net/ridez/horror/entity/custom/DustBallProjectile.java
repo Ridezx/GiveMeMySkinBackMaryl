@@ -19,6 +19,10 @@ public class DustBallProjectile extends BurstingProjectile {
         super(ModEntities.dust_ball_projectile.get(), shooter, level);
     }
 
+    protected DustBallProjectile(EntityType<? extends DustBallProjectile> type, LivingEntity shooter, Level level) {
+        super(type, shooter, level);
+    }
+
     @Override
     protected Item getDefaultItem() {
         return ModItems.dust_ball.get();

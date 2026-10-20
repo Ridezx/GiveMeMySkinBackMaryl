@@ -18,6 +18,10 @@ public class ModEntityRenderers {
 
         event.registerEntityRenderer(ModEntities.skinwalker.get(), SkinwalkerRenderer::new);
         event.registerEntityRenderer(ModEntities.odie.get(), OdieRenderer::new);
+        event.registerEntityRenderer(ModEntities.sandman.get(), SandmanRenderer::new);
+        event.registerEntityRenderer(ModEntities.sandman_bullet.get(), ThrownItemRenderer::new);
+        event.registerEntityRenderer(ModEntities.hollow.get(), HollowRenderer::new);
+        event.registerEntityRenderer(ModEntities.angel.get(), AngelRenderer::new);
 
         event.registerEntityRenderer(ModEntities.gustav.get(), context -> new TraderRenderer(context, "gustav"));
         event.registerEntityRenderer(ModEntities.walter.get(), context -> new TraderRenderer(context, "walter"));

@@ -1,5 +1,6 @@
 package net.ridez.horror.item.custom;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.ParticleTypes;
@@ -237,7 +238,8 @@ public class ToyGunItem extends Item {
 
     @Override
     public void appendHoverText(ItemStack pStack, TooltipContext pContext, List<Component> pTooltip, TooltipFlag pFlag) {
-        pTooltip.add(Component.translatable(isLoaded(pStack) ? "tooltip.horrormod.toy_gun.loaded" : "tooltip.horrormod.toy_gun.empty"));
+        pTooltip.add(isLoaded(pStack) ? Component.translatable("tooltip.horrormod.toy_gun.loaded").withStyle(ChatFormatting.RED)
+                : Component.translatable("tooltip.horrormod.toy_gun.empty").withStyle(ChatFormatting.AQUA));
         super.appendHoverText(pStack, pContext, pTooltip, pFlag);
     }
 

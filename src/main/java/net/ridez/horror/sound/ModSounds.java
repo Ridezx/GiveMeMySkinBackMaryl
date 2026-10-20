@@ -18,6 +18,16 @@ public class ModSounds {
     public static final RegistryObject<SoundEvent> skinwalker_knock = register("skinwalker_knock");
     public static final RegistryObject<SoundEvent> skinwalker_door_voice = register("skinwalker_door_voice");
 
+    // The Hollow's low groan now and then, and the crack and slump of it falling apart.
+    public static final RegistryObject<SoundEvent> hollow_ambient = register("hollow_ambient");
+    public static final RegistryObject<SoundEvent> hollow_death = register("hollow_death");
+    // The Angel: its wings beating as it flies, and its ring opening onto the white portal and closing again.
+    public static final RegistryObject<SoundEvent> angel_wings = register("angel_wings");
+    public static final RegistryObject<SoundEvent> angel_open = register("angel_open");
+    public static final RegistryObject<SoundEvent> angel_close = register("angel_close");
+    // Its scream when salt hits it.
+    public static final RegistryObject<SoundEvent> hollow_scream = register("hollow_scream");
+
     private static RegistryObject<SoundEvent> register(String name) {
         return SOUND_EVENTS.register(name, () -> SoundEvent.createVariableRangeEvent(ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, name)));
     }

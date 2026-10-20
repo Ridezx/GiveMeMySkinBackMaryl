@@ -19,11 +19,16 @@ import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import net.ridez.horror.HorrorMod;
+import net.ridez.horror.entity.custom.AngelEntity;
 import net.ridez.horror.entity.custom.DustBallProjectile;
+import net.ridez.horror.entity.custom.HollowEntity;
 import net.ridez.horror.entity.custom.OdieEntity;
 import net.ridez.horror.entity.custom.SaltProjectile;
 import net.ridez.horror.entity.custom.SkinwalkerEntity;
+import net.ridez.horror.entity.custom.SandmanBullet;
+import net.ridez.horror.entity.custom.SandmanEntity;
 import net.ridez.horror.entity.custom.TraderEntity;
+import net.ridez.horror.worldgen.HolyPlaces;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -49,6 +54,24 @@ public class ModEntities {
             () -> EntityType.Builder.<OdieEntity>of(OdieEntity::new, MobCategory.MISC)
                     .sized(0.6f, 2.7f).clientTrackingRange(16).noSave().fireImmune().build("odie"));
 
+    // The Sandman: a player's height and width.
+    public static final RegistryObject<EntityType<SandmanEntity>> sandman = ENTITY_TYPES.register("sandman",
+            () -> EntityType.Builder.<SandmanEntity>of(SandmanEntity::new, MobCategory.CREATURE)
+                    .sized(0.6f, 1.75f).clientTrackingRange(10).build("sandman"));
+    public static final RegistryObject<EntityType<SandmanBullet>> sandman_bullet = ENTITY_TYPES.register("sandman_bullet",
+            () -> EntityType.Builder.<SandmanBullet>of(SandmanBullet::new, MobCategory.MISC)
+                    .sized(0.25f, 0.25f).clientTrackingRange(4).updateInterval(10).build("sandman_bullet"));
+
+    // The Hollow: a little taller than a player (it stands about 2 blocks, hunched).
+    public static final RegistryObject<EntityType<HollowEntity>> hollow = ENTITY_TYPES.register("hollow",
+            () -> EntityType.Builder.<HollowEntity>of(HollowEntity::new, MobCategory.CREATURE)
+                    .sized(0.6f, 1.9f).clientTrackingRange(10).build("hollow"));
+
+    // The Angel: its hitbox is the ring (the wings, out to ~6 blocks across, don't catch anything).
+    public static final RegistryObject<EntityType<AngelEntity>> angel = ENTITY_TYPES.register("angel",
+            () -> EntityType.Builder.<AngelEntity>of(AngelEntity::new, MobCategory.CREATURE)
+                    .sized(1.5f, 1.9f).clientTrackingRange(16).fireImmune().build("angel"));
+
     public static final RegistryObject<EntityType<TraderEntity>> gustav = registerTrader("gustav", ModTrades::gustav);
     public static final RegistryObject<EntityType<TraderEntity>> walter = registerTrader("walter", ModTrades::walter);
     public static final RegistryObject<EntityType<TraderEntity>> frank = registerTrader("frank", ModTrades::frank);
@@ -63,6 +86,9 @@ public class ModEntities {
     private static void registerAttributes(EntityAttributeCreationEvent event) {
         event.put(skinwalker.get(), SkinwalkerEntity.createAttributes().build());
         event.put(odie.get(), OdieEntity.createAttributes().build());
+        event.put(sandman.get(), SandmanEntity.createAttributes().build());
+        event.put(hollow.get(), HollowEntity.createAttributes().build());
+        event.put(angel.get(), AngelEntity.createAttributes().build());
         event.put(gustav.get(), TraderEntity.createAttributes().build());
         event.put(walter.get(), TraderEntity.createAttributes().build());
         event.put(frank.get(), TraderEntity.createAttributes().build());
@@ -79,7 +105,8 @@ public class ModEntities {
                                               BlockPos pPos, RandomSource pRandom) {
         ServerLevel level = pLevel.getLevel();
         return level.dimension() == Level.OVERWORLD && !level.isDay()
-                && Monster.checkMonsterSpawnRules(pType, pLevel, pReason, pPos, pRandom);
+                && Monster.checkMonsterSpawnRules(pType, pLevel, pReason, pPos, pRandom)
+                && !HolyPlaces.inside(level, pPos);                     // never in a holy place
     }
 
     public static void register(IEventBus eventBus) {

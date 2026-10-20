@@ -6,9 +6,6 @@ import net.minecraft.world.food.FoodProperties;
 
 // Unknown how to make you take longer to eat.
 public class ModFoodProperties {
-    public static final FoodProperties placeholderfood = new FoodProperties.Builder().nutrition(10).saturationModifier(0.8f)
-            .effect(new MobEffectInstance(MobEffects.UNLUCK,400),0.90f).build();
-
     // Saturation = nutrition * modifier * 2.
     // 12 hunger, 14.4 saturation (same as a golden carrot).
     public static final FoodProperties pelt = new FoodProperties.Builder().nutrition(12).saturationModifier(0.6f).build();

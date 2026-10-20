@@ -16,6 +16,8 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import net.ridez.horror.HorrorMod;
 import net.ridez.horror.block.custom.MagicBlock;
+import net.ridez.horror.block.custom.PaintedSkyBlock;
+import net.ridez.horror.block.custom.PlayroomExitBlock;
 import net.ridez.horror.block.custom.SpeedyCarBlock;
 import net.ridez.horror.fluid.ModFluids;
 import net.ridez.horror.item.ModItems;
@@ -37,6 +39,35 @@ public class ModBlocks {
     public static final RegistryObject<Block> avolition = registerBlock("avolition",
             ()-> new Block(BlockBehaviour.Properties.of()
                     .strength(55f).requiresCorrectToolForDrops()));
+
+    // The way out of the Child's Playroom (see PlayroomExitBlock): nothing to stand on, can't be broken.
+    public static final RegistryObject<Block> playroom_exit = registerBlock("playroom_exit",
+            ()-> new PlayroomExitBlock(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BLACK)
+                    .noCollission().strength(-1.0f, 3600000.0f).noLootTable().lightLevel(state -> 6)
+                    .pushReaction(PushReaction.BLOCK)));
+
+    // The Child's Playroom's painted outdoors: its sky ceiling (letting daylight through) and the trees painted on its walls.
+    public static final RegistryObject<Block> painted_sky = registerBlock("painted_sky",
+            ()-> new PaintedSkyBlock(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_LIGHT_BLUE)
+                    .strength(1.5f).requiresCorrectToolForDrops()));
+    public static final RegistryObject<Block> painted_sun = registerBlock("painted_sun",
+            ()-> new Block(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_YELLOW)
+                    .strength(1.5f).requiresCorrectToolForDrops()));
+    public static final RegistryObject<Block> painted_cloud = registerBlock("painted_cloud",
+            ()-> new PaintedSkyBlock(BlockBehaviour.Properties.of().mapColor(MapColor.SNOW)
+                    .strength(1.5f).requiresCorrectToolForDrops()));
+    public static final RegistryObject<Block> painted_leaves = registerBlock("painted_leaves",
+            ()-> new Block(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_GREEN)
+                    .strength(1.5f).requiresCorrectToolForDrops()));
+    public static final RegistryObject<Block> painted_leaves_dark = registerBlock("painted_leaves_dark",
+            ()-> new Block(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_GREEN)
+                    .strength(1.5f).requiresCorrectToolForDrops()));
+    public static final RegistryObject<Block> painted_bark = registerBlock("painted_bark",
+            ()-> new Block(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_BROWN)
+                    .strength(1.5f).requiresCorrectToolForDrops()));
+    public static final RegistryObject<Block> painted_grass = registerBlock("painted_grass",
+            ()-> new Block(BlockBehaviour.Properties.of().mapColor(MapColor.GRASS)
+                    .strength(1.5f).requiresCorrectToolForDrops()));
 
     public static final RegistryObject<Block> dustbricks = registerBlock("dustbricks",
             ()-> new Block(BlockBehaviour.Properties.of()

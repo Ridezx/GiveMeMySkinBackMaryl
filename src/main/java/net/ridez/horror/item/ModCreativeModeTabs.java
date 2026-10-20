@@ -23,6 +23,8 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.heroine.get());
                         output.accept(ModItems.straw.get());
                         output.accept(ModItems.toy_gun.get());
+                        output.accept(ModItems.tactical_vest.get());
+                        output.accept(ModItems.tactical_boots.get());
                         output.accept(ModItems.crank.get());
                         output.accept(ModBlocks.speedy_car.get());
                         output.accept(ModItems.holy_text.get());
@@ -31,6 +33,9 @@ public class ModCreativeModeTabs {
                         output.accept(ModItems.gustav_spawn_egg.get());
                         output.accept(ModItems.walter_spawn_egg.get());
                         output.accept(ModItems.frank_spawn_egg.get());
+                        output.accept(ModItems.sandman_spawn_egg.get());
+                        output.accept(ModItems.hollow_spawn_egg.get());
+                        output.accept(ModItems.angel_spawn_egg.get());
                     }).build());
 
     public static final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_blocks_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_blocks_tab",
@@ -39,6 +44,14 @@ public class ModCreativeModeTabs {
                     .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_blocks"))
                     .displayItems((itemDisplayParameters, output) -> {
                         output.accept(ModBlocks.avolition.get());
+                        output.accept(ModBlocks.playroom_exit.get());
+                        output.accept(ModBlocks.painted_sky.get());
+                        output.accept(ModBlocks.painted_sun.get());
+                        output.accept(ModBlocks.painted_cloud.get());
+                        output.accept(ModBlocks.painted_leaves.get());
+                        output.accept(ModBlocks.painted_leaves_dark.get());
+                        output.accept(ModBlocks.painted_bark.get());
+                        output.accept(ModBlocks.painted_grass.get());
                         output.accept(ModBlocks.dustbricks.get());
                         output.accept(ModBlocks.aspiraton_block.get());
                         output.accept(ModBlocks.mytoma.get());
@@ -81,14 +94,12 @@ public class ModCreativeModeTabs {
                     .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_functional"))
                     .displayItems((itemDisplayParameters, output) -> {
                         output.accept(ModBlocks.Magic_Block.get());
-                        output.accept(ModItems.placeholderfuel.get());
                     }).build());
 
     public static final RegistryObject<CreativeModeTab> give_me_my_skin_back_maryl_food_tab = CREATIVE_MODE_TABS.register("give_me_my_skin_back_maryl_food_tab",
             () -> CreativeModeTab.builder().icon(() -> new ItemStack(ModItems.pelt.get()))
                     .title(Component.translatable("creativetab.horrormod.give_me_my_skin_back_maryl_food"))
                     .displayItems((itemDisplayParameters, output) -> {
-                        output.accept(ModItems.placeholderfood.get());
                         output.accept(ModItems.graft.get());
                         output.accept(ModItems.pelt.get());
                         output.accept(ModItems.rotted_pelt.get());

@@ -15,5 +15,49 @@
       {"name": "minecraft:mob/villager/idle2", "pitch": 0.55},
       {"name": "minecraft:mob/villager/idle3", "pitch": 0.55}
     ]
+  },
+  "hollow_ambient": {
+    "subtitle": "subtitles.horrormod.hollow_ambient",
+    "sounds": [
+      {"name": "minecraft:mob/zombie/say1", "pitch": 0.55},
+      {"name": "minecraft:mob/zombie/say2", "pitch": 0.55},
+      {"name": "minecraft:mob/zombie/say3", "pitch": 0.55}
+    ]
+  },
+  "hollow_death": {
+    "subtitle": "subtitles.horrormod.hollow_death",
+    "sounds": [
+      {"name": "minecraft:mob/skeleton/death", "pitch": 0.6},
+      {"name": "minecraft:mob/zombie/death", "pitch": 0.5}
+    ]
+  },
+  "hollow_scream": {
+    "subtitle": "subtitles.horrormod.hollow_scream",
+    "sounds": [
+      {"name": "minecraft:mob/ghast/scream1", "pitch": 0.6},
+      {"name": "minecraft:mob/ghast/scream2", "pitch": 0.6},
+      {"name": "minecraft:mob/ghast/scream3", "pitch": 0.6}
+    ]
+  },
+  "angel_wings": {
+    "subtitle": "subtitles.horrormod.angel_wings",
+    "sounds": [
+      {"name": "minecraft:mob/phantom/flap1", "pitch": 0.6},
+      {"name": "minecraft:mob/phantom/flap2", "pitch": 0.6},
+      {"name": "minecraft:mob/phantom/flap3", "pitch": 0.6},
+      {"name": "minecraft:mob/phantom/flap4", "pitch": 0.6}
+    ]
+  },
+  "angel_open": {
+    "subtitle": "subtitles.horrormod.angel_open",
+    "sounds": [
+      {"name": "minecraft:block/beacon/activate", "pitch": 0.7}
+    ]
+  },
+  "angel_close": {
+    "subtitle": "subtitles.horrormod.angel_close",
+    "sounds": [
+      {"name": "minecraft:block/beacon/deactivate", "pitch": 0.7}
+    ]
   }
 }

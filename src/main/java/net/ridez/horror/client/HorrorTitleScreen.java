@@ -38,8 +38,8 @@ import org.jetbrains.annotations.Nullable;
 // tall as the screen, tipping his hat. The art is drawn by art/tools/title_screen_art.py (textures/gui/title/).
 @Mod.EventBusSubscriber(modid = HorrorMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public class HorrorTitleScreen extends Screen {
-    private static final ResourceLocation NAME = ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "textures/gui/title/name.png");
-    private static final int NAME_W = 1839, NAME_H = 125;
+    static final ResourceLocation NAME = ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "textures/gui/title/name.png");
+    static final int NAME_W = 1839, NAME_H = 125;
     private static final ResourceLocation ODIE = ResourceLocation.fromNamespaceAndPath(HorrorMod.MOD_ID, "textures/gui/title/odie.png");
     private static final int ODIE_W = 1040, ODIE_H = 1456;
     // Odie stands this far across the screen (his middle)
@@ -60,7 +60,7 @@ public class HorrorTitleScreen extends Screen {
     private static final String DISCORD_URL = "";
     private static final String KOFI_URL = "";
 
-    private static final int BACKGROUND_TOP = 0xFF0E0C0C, BACKGROUND_BOTTOM = 0xFF070505;
+    static final int BACKGROUND_TOP = 0xFF0E0C0C, BACKGROUND_BOTTOM = 0xFF070505;
     private static final int MENU_WIDTH = 150, MENU_HEIGHT = 20, MENU_GAP = 5, MENU_MARGIN = 12;
     private static final int LINK_WIDTH = 52, LINK_HEIGHT = 16;
     private static final Component COPYRIGHT = Component.translatable("title.credits");
@@ -189,14 +189,22 @@ public class HorrorTitleScreen extends Screen {
                 b -> this.minecraft.setScreen(new CreditsAndAttributionScreen(this)), this.font));
     }
 
+    // The title screen's art, also behind the other menus (HorrorScreens): the near-black, and Odie tipping his hat,
+    // as tall as the screen, toward the right (at the given brightness).
+    static void drawBackdrop(GuiGraphics pGuiGraphics, int pWidth, int pHeight, float pOdieBrightness) {
+        pGuiGraphics.fillGradient(0, 0, pWidth, pHeight, BACKGROUND_TOP, BACKGROUND_BOTTOM);
+        RenderSystem.enableBlend();
+        int w = pHeight * ODIE_W / ODIE_H;
+        pGuiGraphics.setColor(pOdieBrightness, pOdieBrightness, pOdieBrightness, 1.0F);
+        pGuiGraphics.blit(ODIE, (int) (pWidth * ODIE_CENTRE) - w / 2, 0, w, pHeight, 0, 0, ODIE_W, ODIE_H, ODIE_W, ODIE_H);
+        pGuiGraphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+        RenderSystem.disableBlend();
+    }
+
     @Override
     public void renderBackground(GuiGraphics pGuiGraphics, int pMouseX, int pMouseY, float pPartialTick) {
-        pGuiGraphics.fillGradient(0, 0, this.width, this.height, BACKGROUND_TOP, BACKGROUND_BOTTOM);
+        drawBackdrop(pGuiGraphics, this.width, this.height, 1.0F);
         RenderSystem.enableBlend();
-        // Odie tipping his hat, as tall as the screen, toward the right
-        int h = this.height;
-        int w = h * ODIE_W / ODIE_H;
-        pGuiGraphics.blit(ODIE, (int) (this.width * ODIE_CENTRE) - w / 2, 0, w, h, 0, 0, ODIE_W, ODIE_H, ODIE_W, ODIE_H);
         // the menu corner sinks into darkness
         pGuiGraphics.fillGradient(0, this.height / 2, this.width / 2, this.height, 0x00000000, 0x60000000);
         // the mod's name, faded into the bottom middle, between the menu and the links, above the version lines

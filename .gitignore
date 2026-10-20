@@ -23,3 +23,14 @@ run
 
 # Files from Forge MDK
 forge*changelog.txt
+
+# exported builds (e.g. the dollhouse as structure files), for use in other worlds; not part of the mod
+export/
+
+# python caches from the art tools, installer logs
+__pycache__/
+*.jar.log
+# Blockbench views of the generated models (the art/tools scripts make them; not used by the game)
+art/angel.bbmodel
+art/hollow.bbmodel
+art/sandman.bbmodel

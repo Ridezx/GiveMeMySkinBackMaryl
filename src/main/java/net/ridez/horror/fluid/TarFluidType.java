@@ -12,6 +12,9 @@ import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.pathfinder.PathType;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.ridez.horror.item.ModItems;
 import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.minecraftforge.common.SoundActions;
 import net.minecraftforge.fluids.FluidType;
@@ -20,7 +23,8 @@ import org.joml.Vector3f;
 
 import java.util.function.Consumer;
 
-// Tar behaves like lava (flow, movement, sounds, fog) but never burns or damages anything. It isn't in the
+// Tar behaves like lava (flow, movement, sounds, fog) but never burns or damages anything (and doesn't slow anyone
+// wearing Tactical Boots). It isn't in the
 // lava fluid tag on purpose: vanilla uses that tag to set entities on fire.
 public class TarFluidType extends FluidType {
     // Its own animated textures (art/tools/fluid_textures.py), already near-black, so they're drawn untinted.
@@ -53,6 +57,15 @@ public class TarFluidType extends FluidType {
     // fluids like water.
     @Override
     public boolean move(FluidState state, LivingEntity entity, Vec3 movementVector, double gravity) {
+        if (entity.getItemBySlot(EquipmentSlot.FEET).is(ModItems.tactical_boots.get())) {
+            // Tactical Boots: Tar doesn't slow them, they move as on dry ground (vanilla's ground movement)
+            BlockPos below = BlockPos.containing(entity.getX(), entity.getBoundingBox().minY - 0.5, entity.getZ());
+            float friction = entity.onGround() ? entity.level().getBlockState(below).getFriction(entity.level(), below, entity) : 1.0F;
+            Vec3 motion = entity.handleRelativeFrictionAndCalculateMovement(movementVector, friction);
+            double y = entity.isNoGravity() ? motion.y : motion.y - gravity;
+            entity.setDeltaMovement(motion.x * friction * 0.91F, y * 0.98F, motion.z * friction * 0.91F);
+            return true;
+        }
         boolean falling = entity.getDeltaMovement().y <= 0.0;
         double startY = entity.getY();
         entity.moveRelative(0.02F, movementVector);
